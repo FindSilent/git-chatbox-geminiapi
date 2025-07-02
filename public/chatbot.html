@@ -115,7 +115,7 @@
       align-items: center;
     }
     button, .file-upload {
-      padding: 12px 16px;
+      padding: 5px 10px;
       border: none;
       border-radius: 8px;
       font-size: 1rem;
@@ -124,8 +124,6 @@
       color: white;
       transition: background 0.2s ease;
       text-align: center;
-      flex: 1;
-      min-width: 80px;
     }
     button:hover, .file-upload:hover {
       background: #2563eb;
@@ -184,13 +182,13 @@
       <textarea id="prompt" placeholder="Nhập câu hỏi của bạn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
       <div id="controls">
         <label class="file-upload">
-          Tải
+          Upload
           <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
         </label>
         <span id="file-name" class="file-name"></span>
-        <button onclick="resetChat()">🔄 Reset</button>
-        <button onclick="toggleDarkMode()">🌓 Dark Mode</button>
-        <button onclick="sendMessage()">Gửi</button>
+        <button onclick="resetChat()">🔄 Clear</button>
+        <button onclick="toggleDarkMode()">🌓</button>
+        <button onclick="sendMessage()">↑</button>
       </div>
     </div>
   </div>
