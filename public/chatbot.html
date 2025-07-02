@@ -1,39 +1,162 @@
-<!-- File: index.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gemini Chatbot</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@latest/css/pico.min.css" />
-  <style>
-    body.dark-mode { background: #111; color: #eee; }
-    .chat-container { max-width: 720px; margin: auto; }
-    .message { padding: 0.75em; border-radius: 8px; margin: 0.5em 0; }
-    .user { background: #d9fdd3; align-self: flex-end; text-align: right; }
-    .bot { background: #f1f0f0; align-self: flex-start; text-align: left; }
-    #chat-box { display: flex; flex-direction: column; overflow-y: auto; height: 60vh; margin-bottom: 1em; }
-    #thinking { color: gray; font-style: italic; }
-  </style>
-</head>
 <body>
-  <main class="chat-container">
-    <h2>💬 Gemini Chat</h2>
-    <button id="toggle-dark">🌙 Toggle Dark Mode</button>
-    <button id="reset-chat">🔄 Reset</button>
-    <button id="export-txt">📁 Export</button>
-    <div id="chat-box"></div>
+  <div id="chatbox">
+    <h2>💬 Gemini Chatbot</h2>
+    <div id="messages"></div>
 
-    <input type="file" id="image-upload" accept="image/*">
-    <button id="record-btn">🎤 Ghi âm</button>
+    <textarea id="prompt" placeholder="Nhập câu hỏi của bạn..."></textarea>
+    <select id="model">
+      <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+      <option value="gemini-2.0-pro">gemini-2.0-pro</option>
+      <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+    </select>
 
-    <form id="chat-form">
-      <textarea id="prompt" placeholder="Nhập tin nhắn..."></textarea>
-      <button type="submit">Gửi</button>
-    </form>
-    <p id="thinking"></p>
-  </main>
+    <div id="controls">
+      <button onclick="sendMessage()">Gửi</button>
+      <button onclick="resetChat()">🔄 Reset</button>
+      <button onclick="toggleDarkMode()">🌓 Dark Mode</button>
+      <button onclick="exportChat()">📄 Xuất File</button>
+    </div>
+  </div>
 
-  <script src="main.js"></script>
+  <script>
+    const messagesDiv = document.getElementById("messages");
+    const localKey = "chat_history";
+
+    let history = [];
+
+    // Load chat history + dark mode
+    window.onload = () => {
+      const saved = localStorage.getItem(localKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        parsed.forEach(msg => {
+          addMessage(msg.sender, formatMarkdown(msg.text), true);
+        });
+        history = parsed
+          .filter(m => m.sender === "You" || m.sender === "Bot")
+          .map(m => ({
+            role: m.sender === "You" ? "user" : "model",
+            parts: [{ text: m.text }],
+          }));
+      }
+
+      if (localStorage.getItem("darkMode") === "true") {
+        document.body.classList.add("dark");
+      }
+    };
+
+    async function sendMessage() {
+      const prompt = document.getElementById("prompt").value.trim();
+      const model = document.getElementById("model").value;
+      if (!prompt) return;
+
+      addMessage("You", prompt);
+      document.getElementById("prompt").value = "";
+
+      const thinking = addMessage("Bot", "<em>Thinking...</em>", true);
+
+      try {
+        const res = await fetch("/api/gemini", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, model, history }),
+        });
+
+        const data = await res.json();
+        const reply = data.reply || "No response";
+        const formatted = formatMarkdown(reply);
+        updateMessage(thinking, formatted);
+
+        history.push({ role: "user", parts: [{ text: prompt }] });
+        history.push({ role: "model", parts: [{ text: reply }] });
+
+        saveToLocal();
+      } catch (err) {
+        updateMessage(thinking, "❌ Lỗi khi gọi API.");
+      }
+    }
+
+    function addMessage(sender, text, isHTML = false) {
+      const msgDiv = document.createElement("div");
+      msgDiv.className = "msg";
+
+      const avatar = document.createElement("span");
+      avatar.style.fontSize = "1.5em";
+      avatar.style.marginRight = "8px";
+      avatar.textContent = sender === "You" ? "🧑" : "🤖";
+
+      const senderSpan = document.createElement("div");
+      senderSpan.className = "user";
+      senderSpan.textContent = `${sender}:`;
+
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "bot";
+      contentDiv.innerHTML = isHTML ? text : escapeHTML(text);
+
+      msgDiv.appendChild(avatar);
+      msgDiv.appendChild(senderSpan);
+      msgDiv.appendChild(contentDiv);
+      messagesDiv.appendChild(msgDiv);
+
+      // Auto scroll
+      window.scrollTo(0, document.body.scrollHeight);
+
+      return contentDiv;
+    }
+
+    function updateMessage(node, newText) {
+      node.innerHTML = newText;
+      window.scrollTo(0, document.body.scrollHeight);
+    }
+
+    function resetChat() {
+      messagesDiv.innerHTML = "";
+      history = [];
+      localStorage.removeItem(localKey);
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark");
+      localStorage.setItem("darkMode", document.body.classList.contains("dark"));
+    }
+
+    function formatMarkdown(text) {
+      return text
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.*?)\*/g, "<em>$1</em>")
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\n/g, "<br>");
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;',
+        "'": '&#39;', '"': '&quot;',
+      }[tag]));
+    }
+
+    function saveToLocal() {
+      const saved = history.map((h, i) => ({
+        sender: h.role === "user" ? "You" : "Bot",
+        text: h.parts[0].text
+      }));
+      localStorage.setItem(localKey, JSON.stringify(saved));
+    }
+
+    function exportChat() {
+      const saved = localStorage.getItem(localKey);
+      if (!saved) return alert("Không có hội thoại để xuất.");
+      const messages = JSON.parse(saved);
+      const lines = messages.map(m => `${m.sender}: ${m.text}`).join("\n\n");
+
+      const blob = new Blob([lines], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "chat_history.txt";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
 </body>
-</html>
