@@ -1,6 +1,6 @@
 // pages/api/gemini.js
 
-import supabase from "../../lib/supabase"; // Đảm bảo đúng path lib/supabase
+import supabase from "../lib/supabase"; // Đảm bảo đúng path lib/supabase
 const DEFAULT_MODEL = "gemini-1.5-pro";
 
 export const config = {
