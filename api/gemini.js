@@ -1,5 +1,5 @@
-const DEFAULT_MODEL = "gemini-1.5-pro"; // hỗ trợ ảnh tốt hơn
-import supabase from "../lib/supabase"; // chỉnh đúng path nếu cần
+const DEFAULT_MODEL = "gemini-1.5-pro"; // Đảm bảo model hỗ trợ ảnh
+import supabase from "../lib/supabase"; // Chỉnh đúng path nếu cần
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -32,6 +32,7 @@ export default async function handler(req, res) {
   const parts = [];
 
   if (image?.data && image?.mimeType) {
+    console.log("Received image:", { mimeType: image.mimeType, dataLength: image.data.length });
     parts.push({
       inlineData: {
         mimeType: image.mimeType,
@@ -57,7 +58,7 @@ export default async function handler(req, res) {
     );
 
     const data = await response.json();
-    console.log("Gemini API response:", JSON.stringify(data, null, 2)); // Log để debug
+    console.log("Gemini API response:", JSON.stringify(data, null, 2));
 
     if (!response.ok) {
       return res.status(response.status).json({
@@ -79,7 +80,7 @@ export default async function handler(req, res) {
 
     const reply = data.candidates[0].content.parts[0].text ?? "[Gemini không có phản hồi]";
 
-    // Lưu vào Supabase (sử dụng bảng chats như ban đầu)
+    // Lưu vào Supabase (sử dụng bảng chats)
     const { error } = await supabase.from("chats").insert([
       {
         session_id: req.headers["x-session-id"] || "anonymous",
