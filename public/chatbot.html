@@ -45,79 +45,6 @@
     }
     .bot {
       background-color: var(--bot-bg);
-      border-left: 4px solid_via thông qua API Vercel và lưu code trên GitHub. Dưới đây là hướng dẫn từng bước để hoàn thiện các tính năng và khắc phục lỗi "Không có phản hồi" mà bạn gặp phải.
-
----
-
-### **Tóm tắt vấn đề**
-- **Lỗi "Không có phản hồi"**: Xảy ra khi Gemini API không trả về dữ liệu hợp lệ (`data.candidates[0]?.content?.parts?.[0]?.text` không tồn tại).
-- **Mục tiêu cải thiện**:
-  - **Backend**: Đã cập nhật `gemini.js` để thêm logging, xử lý lỗi chi tiết, giới hạn kích thước input, và tối ưu lưu trữ Supabase.
-  - **Frontend**: Thêm preview ảnh, toast notification cho lỗi, xử lý file `.txt`, và debounce sự kiện `keydown`.
-- **Thời gian hiện tại**: 08:54 PM +07, Thứ Tư, ngày 2 tháng 7 năm 2025.
-
----
-
-### **Bước 2: Cải thiện Frontend (chatbot.html)**
-
-#### **Mục tiêu**
-1. **Preview ảnh**: Hiển thị ảnh người dùng chọn trước khi gửi trong giao diện chat.
-2. **Toast notification**: Hiển thị thông báo lỗi bằng toast thay vì chèn trực tiếp vào lịch sử chat.
-3. **Xử lý file `.txt`**: Đọc nội dung file `.txt` từ `#fileInput` và thêm vào `textarea`.
-4. **Debounce `keydown`**: Ngăn gửi nhiều yêu cầu khi người dùng nhấn Enter liên tục.
-
-#### **Code cập nhật (chatbot.html)**
-
-Dưới đây là file `chatbot.html` được cập nhật với các tính năng trên, tích hợp với backend đã sửa ở **Bước 1**. Tôi cũng thêm logic để hiển thị thông báo lỗi chi tiết từ backend (bao gồm `code` và `details`).
-
-<xaiArtifact artifact_id="5d668899-9149-4f78-8a6a-59f548e22bb3" artifact_version_id="3867b84e-397f-4a62-9b43-0be9c16c85c4" title="chatbot.html" contentType="text/html">
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Gemini Chatbot</title>
-  <style>
-    :root {
-      --bg: #f2f2f2;
-      --text: #222;
-      --card: #fff;
-      --highlight: #1a73e8;
-      --bot-bg: #f9f9f9;
-      --error-bg: #ff4d4d;
-    }
-    body.dark {
-      --bg: #121212;
-      --text: #e0e0e0;
-      --card: #1e1e1e;
-      --bot-bg: #2a2a2a;
-      --error-bg: #cc0000;
-    }
-    body {
-      font-family: Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      padding: 40px;
-      transition: 0.3s;
-    }
-    #chatbox {
-      max-width: 700px;
-      margin: auto;
-      background: var(--card);
-      border-radius: 8px;
-      padding: 20px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    .msg {
-      margin-bottom: 20px;
-      position: relative;
-    }
-    .user {
-      font-weight: bold;
-      color: var(--highlight);
-    }
-    .bot {
-      background-color: var(--bot-bg);
       border-left: 4px solid var(--highlight);
       padding: 10px;
       border-radius: 5px;
@@ -140,6 +67,8 @@ Dưới đây là file `chatbot.html` được cập nhật với các tính nă
       border-radius: 5px;
       box-shadow: 0 0 10px rgba(0,0,0,0.2);
       z-index: 1000;
+      max-width: 300px;
+      word-wrap: break-word;
     }
     textarea, button, select {
       margin-top: 10px;
@@ -297,7 +226,7 @@ Dưới đây là file `chatbot.html` được cập nhật với các tính nă
               saveToLocal();
               imageInput.value = "";
             } catch (err) {
-              showError(`Lỗi: ${err.message}`);
+              showError(`Lỗi: ${err.message}${err.message.includes("SUPABASE_ERROR") ? " (Kiểm tra cấu hình Supabase)" : ""}`);
               updateMessage(thinking, "❌ Lỗi khi gọi API.");
             } finally {
               isSending = false;
@@ -322,7 +251,7 @@ Dưới đây là file `chatbot.html` được cập nhật với các tính nă
           saveToLocal();
         }
       } catch (err) {
-        showError(`Lỗi: ${err.message}`);
+        showError(`Lỗi: ${err.message}${err.message.includes("SUPABASE_ERROR") ? " (Kiểm tra cấu hình Supabase)" : ""}`);
         updateMessage(thinking, "❌ Lỗi khi gọi API.");
       } finally {
         isSending = false;
@@ -377,7 +306,7 @@ Dưới đây là file `chatbot.html` được cập nhật với các tính nă
       toast.className = "toast";
       toast.textContent = message;
       document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 3000);
+      setTimeout(() => toast.remove(), 5000); // Tăng thời gian hiển thị lên 5s để đọc lỗi chi tiết
     }
 
     function resetChat() {
@@ -401,8 +330,8 @@ Dưới đây là file `chatbot.html` được cập nhật với các tính nă
 
     function escapeHTML(str) {
       return str.replace(/[&<>'"]/g, tag => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;',
-        "'": '&#39;', '"': '&quot;',
+        '&': '&', '<': '<', '>': '>',
+        "'": ''', '"': '"',
       }[tag]));
     }
 
