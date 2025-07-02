@@ -273,7 +273,12 @@
       const thinking = addMessage("Bot", "<em>Đang suy nghĩ...</em>", true);
 
       try {
-        const body = { prompt, model, history, image: imageData };
+        const body = { prompt, model, history };
+        if (imageData) {
+          body.parts = [{ text: prompt || "Mô tả ảnh này" }, { inlineData: imageData }];
+        }
+        console.log("Sending payload:", JSON.stringify(body, null, 2));
+
         const res = await fetch("/api/gemini", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
