@@ -68,26 +68,34 @@
       const prompt = document.getElementById("prompt").value.trim();
       const model = document.getElementById("model").value;
       if (!prompt) return;
-
+    
       addMessage("You", prompt);
-
       document.getElementById("prompt").value = "";
-
+    
+      const thinkingId = addMessage("Bot", "<em>Thinking...</em>", true);
+    
       try {
         const res = await fetch("/api/gemini", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, model })
+          body: JSON.stringify({ prompt, model, history }),
         });
-
+    
         const data = await res.json();
-        const formatted = formatMarkdown(data.reply || "No response.");
-        addMessage("Bot", formatted, true);
+        const reply = formatMarkdown(data.reply || "No response.");
+    
+        updateMessage(thinkingId, reply);
+    
+        // Cập nhật history
+        history.push({ role: "user", parts: [{ text: prompt }] });
+        history.push({ role: "model", parts: [{ text: data.reply }] });
+    
       } catch (err) {
         console.error(err);
-        addMessage("Bot", "❌ Lỗi khi gọi API.");
+        updateMessage(thinkingId, "❌ Lỗi khi gọi API.");
       }
     }
+
 
     function addMessage(sender, text, isHTML = false) {
       const msgDiv = document.createElement("div");
