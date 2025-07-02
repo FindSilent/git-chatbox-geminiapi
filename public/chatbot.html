@@ -16,6 +16,12 @@
 <body>
   <h2>Gemini Chatbot</h2>
   <div id="chat"></div>
+  <select id="model-select">
+  <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+  <option value="gemini-2.0-pro">gemini-2.0-pro</option>
+  <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+</select>
+
   <input type="text" id="prompt" placeholder="Ask me anything..." style="width: 80%;" />
   <button onclick="send()">Send</button>
 
