@@ -1,4 +1,4 @@
-const DEFAULT_MODEL = "gemini-1.5-pro"; // Đảm bảo model hỗ trợ ảnh
+const DEFAULT_MODEL = "gemini-1.5-flash"; // Sử dụng model có quota cao hơn
 import supabase from "../lib/supabase"; // Chỉnh đúng path nếu cần
 
 export default async function handler(req, res) {
@@ -61,6 +61,14 @@ export default async function handler(req, res) {
     console.log("Gemini API response:", JSON.stringify(data, null, 2));
 
     if (!response.ok) {
+      if (response.status === 429) {
+        return res.status(429).json({
+          error: "Quota exceeded. Consider upgrading to pay-as-you-go or using gemini-1.5-flash.",
+          route: "gemini.js",
+          code: "QUOTA_EXCEEDED",
+          details: data?.error?.details || null,
+        });
+      }
       return res.status(response.status).json({
         error: data?.error?.message || "Gemini API request failed",
         route: "gemini.js",
