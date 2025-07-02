@@ -81,7 +81,7 @@
       bottom: 20px;
       right: 20px;
       background: var(--error-bg);
-      color white;
+      color: white;
       padding: 12px 24px;
       border-radius: 8px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.2);
@@ -183,16 +183,21 @@
     window.onload = () => {
       const saved = localStorage.getItem(localKey);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        parsed.forEach(msg => {
-          addMessage(msg.sender, formatMarkdown(msg.text), true);
-        });
-        history = parsed
-          .filter(m => m.sender === "You" || m.sender === "Bot")
-          .map(m => ({
-            role: m.sender === "You" ? "user" : "model",
-            parts: [{ text: m.text }],
-          }));
+        try {
+          const parsed = JSON.parse(saved);
+          parsed.forEach(msg => {
+            addMessage(msg.sender, formatMarkdown(msg.text), true);
+          });
+          history = parsed
+            .filter(m => m.sender === "You" || m.sender === "Bot")
+            .map(m => ({
+              role: m.sender === "You" ? "user" : "model",
+              parts: [{ text: m.text }],
+            }));
+        } catch (e) {
+          console.error("Error parsing localStorage:", e);
+          showError("Lỗi khi tải lịch sử chat từ localStorage.");
+        }
       }
       if (localStorage.getItem("darkMode") === "true") {
         document.body.classList.add("dark");
@@ -210,8 +215,12 @@
           messagesDiv.appendChild(img);
           window.scrollTo(0, document.body.scrollHeight);
         } else if (file.type === "text/plain") {
-          const text = await file.text();
-          promptInput.value += text;
+          try {
+            const text = await file.text();
+            promptInput.value += text;
+          } catch (e) {
+            showError("Lỗi khi đọc file .txt.");
+          }
         } else {
           showError("Định dạng file không được hỗ trợ. Chỉ hỗ trợ ảnh (PNG, JPEG, WebP) hoặc file .txt.");
         }
@@ -271,6 +280,10 @@
               isSending = false;
             }
           };
+          reader.onerror = () => {
+            showError("Lỗi khi đọc file ảnh.");
+            isSending = false;
+          };
           reader.readAsDataURL(file);
         } else {
           const res = await fetch("/api/gemini", {
@@ -310,8 +323,7 @@
       senderSpan.className = "user";
       senderSpan.textContent = `${sender}:`;
 
-      const contentDiv = document.createElement("div");
-      contentDiv.className = "bot";
+      const contentDiv = document.create MDN: <div class="bot"></div>
       contentDiv.innerHTML = isHTML ? text : escapeHTML(text);
 
       if (sender === "Bot") {
@@ -360,6 +372,10 @@
     }
 
     function formatMarkdown(text) {
+      if (typeof text !== "string") {
+        console.error("formatMarkdown: Input is not a string:", text);
+        return "";
+      }
       return text
         .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
         .replace(/\*(.*?)\*/g, "<em>$1</em>")
@@ -368,32 +384,52 @@
     }
 
     function escapeHTML(str) {
+      if (typeof str !== "string") {
+        console.error("escapeHTML: Input is not a string:", str);
+        return "";
+      }
       return str.replace(/[&<>'"]/g, tag => ({
-        '&': '&', '<': '<', '>': '>',
-        "'": ''', '"': '"',
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "'": "&#39;",
+        '"': "&quot;",
       }[tag]));
     }
 
     function saveToLocal() {
-      const saved = history.slice(-100).map(h => ({
-        sender: h.role === "user" ? "You" : "Bot",
-        text: h.parts[0].text
-      }));
-      localStorage.setItem(localKey, JSON.stringify(saved));
+      try {
+        const saved = history.slice(-100).map(h => ({
+          sender: h.role === "user" ? "You" : "Bot",
+          text: h.parts[0].text
+        }));
+        localStorage.setItem(localKey, JSON.stringify(saved));
+      } catch (e) {
+        console.error("Error saving to localStorage:", e);
+        showError("Lỗi khi lưu lịch sử chat.");
+      }
     }
 
     function exportChat() {
       const saved = localStorage.getItem(localKey);
-      if (!saved) return showError("Không có hội thoại để xuất.");
-      const messages = JSON.parse(saved);
-      const lines = messages.map(m => `${m.sender}: ${m.text}`).join("\n\n");
-      const blob = new Blob([lines], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "chat_history.txt";
-      a.click();
-      URL.revokeObjectURL(url);
+      if (!saved) {
+        showError("Không có hội thoại để xuất.");
+        return;
+      }
+      try {
+        const messages = JSON.parse(saved);
+        const lines = messages.map(m => `${m.sender}: ${m.text}`).join("\n\n");
+        const blob = new Blob([lines], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "chat_history.txt";
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error("Error exporting chat:", e);
+        showError("Lỗi khi xuất hội thoại.");
+      }
     }
 
     // Debounce keydown event
