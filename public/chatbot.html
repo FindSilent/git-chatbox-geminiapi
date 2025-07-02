@@ -90,6 +90,7 @@
     <div id="messages"></div>
 
     <textarea id="prompt" rows="3" placeholder="Nhập câu hỏi của bạn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
+    <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.txt,.pdf" />
     <select id="model">
       <option value="gemini-2.0-flash">gemini-2.0-flash</option>
       <option value="gemini-2.0-pro">gemini-2.0-pro</option>
@@ -260,6 +261,49 @@
       a.click();
       URL.revokeObjectURL(url);
     }
+    document.getElementById("fileInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = async () => {
+    let content = reader.result;
+
+    if (file.type.startsWith("image/")) {
+      content = `Người dùng đã gửi một hình ảnh: ${file.name} (không thể hiển thị ảnh trong chatbot text).`;
+    }
+
+    // Gửi nội dung file như prompt
+    promptInput.value = content;
+    sendMessage();
+  };
+
+  if (file.type.startsWith("text/") || file.name.endsWith(".txt")) {
+    reader.readAsText(file);
+  } else if (file.type === "application/pdf") {
+    const pdf = await file.arrayBuffer();
+    const text = await extractTextFromPDF(pdf);
+    promptInput.value = text.slice(0, 3000); // Cắt bớt nếu quá dài
+    sendMessage();
+  } else {
+    reader.readAsDataURL(file); // image fallback
+  }
+});
+
+// PDF parser (dùng pdf.js)
+async function extractTextFromPDF(buffer) {
+  const pdfjsLib = await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.min.mjs");
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  let text = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(item => item.str).join(" ") + "\n";
+  }
+  return text;
+}
+
   </script>
 </body>
 </html>
