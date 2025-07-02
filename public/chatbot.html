@@ -128,6 +128,42 @@
         .replace(/`([^`]+)`/g, "<code>$1</code>")
         .replace(/\n/g, "<br>");
     }
+
+let history = [];
+function addMessage(sender, text, isHTML = false) {
+  const msgDiv = document.createElement("div");
+  msgDiv.className = "msg";
+
+  const senderSpan = document.createElement("div");
+  senderSpan.className = "user";
+  senderSpan.textContent = `${sender}:`;
+
+  const contentDiv = document.createElement("div");
+  contentDiv.className = "bot";
+  contentDiv.innerHTML = isHTML ? text : escapeHTML(text);
+
+  msgDiv.appendChild(senderSpan);
+  msgDiv.appendChild(contentDiv);
+  document.getElementById("messages").appendChild(msgDiv);
+  window.scrollTo(0, document.body.scrollHeight);
+
+  return contentDiv; // Trả về để cập nhật sau
+}
+
+function updateMessage(node, newText) {
+  node.innerHTML = newText;
+}
+
+function escapeHTML(str) {
+  return str.replace(/[&<>'"]/g, (tag) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;',
+  }[tag]));
+}
+
   </script>
 </body>
 </html>
