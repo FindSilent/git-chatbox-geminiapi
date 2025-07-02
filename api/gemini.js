@@ -79,13 +79,11 @@ export default async function handler(req, res) {
 
     const reply = data.candidates[0].content.parts[0].text ?? "[Gemini không có phản hồi]";
 
-    // Lưu vào Supabase
-    const { error } = await supabase.from("messages").insert([
+    // Lưu vào Supabase (sử dụng bảng chats như ban đầu)
+    const { error } = await supabase.from("chats").insert([
       {
         session_id: req.headers["x-session-id"] || "anonymous",
-        user_message: prompt?.trim() || "[Image uploaded]",
-        bot_reply: reply,
-        timestamp: new Date().toISOString(),
+        history: [...contents, { role: "model", parts: [{ text: reply }] }],
       },
     ]);
 
