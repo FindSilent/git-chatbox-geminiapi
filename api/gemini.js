@@ -1,19 +1,18 @@
-// api/gemini.js
-const DEFAULT_MODEL = "gemini-1.5-pro"; // hỗ trợ ảnh tốt hơn
-import supabase from "../lib/supabase"; // chỉnh đúng path nếu cần
+const DEFAULT_MODEL = "gemini-2.0-flash"; // Fixed to gemini-2.0-flash
+import supabase from "../lib/supabase";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { prompt, model, history, image } = req.body;
+  const { prompt, history, image } = req.body;
 
   if (!prompt?.trim() && !image) {
     return res.status(400).json({ error: "Prompt or image is required" });
   }
 
-  const modelName = model || DEFAULT_MODEL;
+  const modelName = DEFAULT_MODEL;
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "Missing Gemini API key" });
 
@@ -54,7 +53,6 @@ export default async function handler(req, res) {
 
     const reply = data.candidates[0]?.content?.parts?.[0]?.text ?? "[Gemini không có phản hồi]";
 
-    // Lưu vào Supabase
     await supabase.from("chats").insert([
       {
         session_id: req.headers["x-session-id"] || "anonymous",
