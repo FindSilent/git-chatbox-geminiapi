@@ -49,3 +49,17 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Gemini API failed. Try again later." });
   }
 }
+
+import supabase from "@/lib/supabase"; // or relative path
+
+// Sau khi có reply:
+await supabase.from("chats").insert([
+  {
+    session_id: req.headers["x-session-id"] || "anonymous",
+    history: contents.concat({
+      role: "model",
+      parts: [{ text: reply }],
+    }),
+  },
+]);
+
