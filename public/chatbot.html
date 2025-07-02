@@ -1,49 +1,124 @@
-<!-- public/chatbot.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Gemini Chatbot</title>
+  <title>Gemini Chatbox</title>
   <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }
-    #chat { border: 1px solid #ccc; padding: 1rem; height: 300px; overflow-y: auto; margin-bottom: 1rem; }
-    .message { margin: 0.5rem 0; }
-    .user { font-weight: bold; }
-    .bot { color: #0070f3; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      padding: 40px;
+    }
+    #chatbox {
+      max-width: 700px;
+      margin: auto;
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .msg {
+      margin-bottom: 20px;
+    }
+    .user {
+      font-weight: bold;
+      color: #1a73e8;
+    }
+    .bot {
+      background-color: #f9f9f9;
+      border-left: 4px solid #1a73e8;
+      padding: 10px;
+      border-radius: 5px;
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+    textarea, button, select {
+      margin-top: 10px;
+      padding: 10px;
+      width: 100%;
+      font-size: 1rem;
+    }
+    pre, code {
+      background: #eee;
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
   </style>
 </head>
 <body>
-  <h2>Gemini Chatbot</h2>
-  <div id="chat"></div>
-  <select id="model-select">
-  <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-  <option value="gemini-2.0-pro">gemini-2.0-pro</option>
-  <option value="gemini-1.5-pro">gemini-1.5-pro</option>
-</select>
+  <div id="chatbox">
+    <h2>💬 Gemini Chatbot</h2>
+    <div id="messages"></div>
 
-  <input type="text" id="prompt" placeholder="Ask me anything..." style="width: 80%;" />
-  <button onclick="send()">Send</button>
+    <textarea id="prompt" placeholder="Nhập câu hỏi của bạn..."></textarea>
+    <select id="model">
+      <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+      <option value="gemini-2.0-pro">gemini-2.0-pro</option>
+      <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+    </select>
+    <button onclick="sendMessage()">Gửi</button>
+  </div>
 
   <script>
-    async function send() {
-      const promptInput = document.getElementById('prompt');
-      const prompt = promptInput.value.trim();
+    const messagesDiv = document.getElementById("messages");
+
+    async function sendMessage() {
+      const prompt = document.getElementById("prompt").value.trim();
+      const model = document.getElementById("model").value;
       if (!prompt) return;
 
-      const chat = document.getElementById('chat');
-      chat.innerHTML += `<div class="message user">You: ${prompt}</div>`;
-      promptInput.value = '';
+      addMessage("You", prompt);
 
-      const res = await fetch('/api/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      });
+      document.getElementById("prompt").value = "";
 
-      const data = await res.json();
-      chat.innerHTML += `<div class="message bot">Bot: ${data.reply}</div>`;
-      chat.scrollTop = chat.scrollHeight;
+      try {
+        const res = await fetch("/api/gemini", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, model })
+        });
+
+        const data = await res.json();
+        const formatted = formatMarkdown(data.reply || "No response.");
+        addMessage("Bot", formatted, true);
+      } catch (err) {
+        console.error(err);
+        addMessage("Bot", "❌ Lỗi khi gọi API.");
+      }
+    }
+
+    function addMessage(sender, text, isHTML = false) {
+      const msgDiv = document.createElement("div");
+      msgDiv.className = "msg";
+
+      const senderSpan = document.createElement("div");
+      senderSpan.className = "user";
+      senderSpan.textContent = `${sender}:`;
+
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "bot";
+      if (isHTML) {
+        contentDiv.innerHTML = text;
+      } else {
+        contentDiv.textContent = text;
+      }
+
+      msgDiv.appendChild(senderSpan);
+      msgDiv.appendChild(contentDiv);
+      messagesDiv.appendChild(msgDiv);
+
+      window.scrollTo(0, document.body.scrollHeight);
+    }
+
+    // Simple Markdown formatter
+    function formatMarkdown(text) {
+      return text
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.*?)\*/g, "<em>$1</em>")
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\n/g, "<br>");
     }
   </script>
 </body>
