@@ -1,33 +1,48 @@
-// api/gemini.js
-const DEFAULT_MODEL = "gemini-1.5-pro"; // hỗ trợ ảnh tốt hơn
-import supabase from "../lib/supabase"; // chỉnh đúng path nếu cần
+// pages/api/gemini.js
+
+import supabase from "../../lib/supabase"; // Đảm bảo đúng path lib/supabase
+const DEFAULT_MODEL = "gemini-1.5-pro";
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "20mb",
+    },
+  },
+};
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { prompt, model, history, image } = req.body;
+  const { prompt, model, history, files = [] } = req.body;
 
-  if (!prompt?.trim() && !image) {
-    return res.status(400).json({ error: "Prompt or image is required" });
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "Missing Gemini API key" });
+  }
+
+  if (!prompt?.trim() && files.length === 0) {
+    return res.status(400).json({ error: "Prompt or files are required" });
   }
 
   const modelName = model || DEFAULT_MODEL;
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "Missing Gemini API key" });
-
   const contents = Array.isArray(history) ? [...history] : [];
 
   const parts = [];
 
-  if (image?.data && image?.mimeType) {
-    parts.push({
-      inlineData: {
-        mimeType: image.mimeType,
-        data: image.data,
-      },
-    });
+  // Gắn tất cả file (ảnh hoặc tài liệu) vào parts nếu có
+  for (const file of files) {
+    if (file?.data && file?.mimeType) {
+      parts.push({
+        inlineData: {
+          data: file.data,
+          mimeType: file.mimeType,
+          name: file.name || "file",
+        },
+      });
+    }
   }
 
   if (prompt?.trim()) {
@@ -52,7 +67,7 @@ export default async function handler(req, res) {
       throw new Error(data?.error?.message || "No candidate response");
     }
 
-    const reply = data.candidates[0]?.content?.parts?.[0]?.text ?? "[Gemini không có phản hồi]";
+    const reply = data.candidates[0]?.content?.parts?.[0]?.text ?? "[Không có phản hồi từ Gemini]";
 
     // Lưu vào Supabase
     await supabase.from("chats").insert([
@@ -64,7 +79,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ reply });
   } catch (error) {
-    console.error("Gemini API error:", error.message || error);
+    console.error("Gemini API error:", error);
     return res.status(500).json({ error: "Gemini API failed. Try again later." });
   }
 }
