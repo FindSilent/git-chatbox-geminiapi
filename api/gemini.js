@@ -1,40 +1,33 @@
-// api/gemini.js (CommonJS syntax)
-const fetch = require("node-fetch");
-const supabase = require("../lib/supabase"); // đúng path nhé
+// api/gemini.js
+const DEFAULT_MODEL = "gemini-1.5-pro"; // hỗ trợ ảnh tốt hơn
+import supabase from "../lib/supabase"; // chỉnh đúng path nếu cần
 
-const DEFAULT_MODEL = "gemini-1.5-pro";
-
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { prompt, model, history, files = [] } = req.body;
+  const { prompt, model, history, image } = req.body;
 
-  if (!prompt?.trim() && files.length === 0) {
-    return res.status(400).json({ error: "Prompt or files are required" });
-  }
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: "Missing Gemini API key" });
+  if (!prompt?.trim() && !image) {
+    return res.status(400).json({ error: "Prompt or image is required" });
   }
 
   const modelName = model || DEFAULT_MODEL;
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: "Missing Gemini API key" });
+
   const contents = Array.isArray(history) ? [...history] : [];
 
   const parts = [];
 
-  for (const file of files) {
-    if (file?.data && file?.mimeType) {
-      parts.push({
-        inlineData: {
-          data: file.data,
-          mimeType: file.mimeType,
-          name: file.name || "file",
-        },
-      });
-    }
+  if (image?.data && image?.mimeType) {
+    parts.push({
+      inlineData: {
+        mimeType: image.mimeType,
+        data: image.data,
+      },
+    });
   }
 
   if (prompt?.trim()) {
@@ -45,7 +38,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+      https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey},
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -74,4 +67,4 @@ module.exports = async function handler(req, res) {
     console.error("Gemini API error:", error.message || error);
     return res.status(500).json({ error: "Gemini API failed. Try again later." });
   }
-};
+}
