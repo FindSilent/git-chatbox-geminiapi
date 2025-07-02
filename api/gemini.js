@@ -1,4 +1,7 @@
 // api/gemini.js
+
+import supabase from "@/lib/supabase"; // sửa đường dẫn nếu không dùng alias
+
 const DEFAULT_MODEL = "gemini-2.0-flash";
 
 export default async function handler(req, res) {
@@ -19,6 +22,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Missing Gemini API key" });
   }
 
+  // Build chat history
   const contents = Array.isArray(history) ? [...history] : [];
   contents.push({
     role: "user",
@@ -41,25 +45,32 @@ export default async function handler(req, res) {
       throw new Error(data?.error?.message || "No candidate response");
     }
 
-    const reply = data.candidates[0]?.content?.parts?.[0]?.text ?? "[Empty Gemini reply]";
+    const reply =
+      data.candidates[0]?.content?.parts?.[0]?.text ?? "[Empty Gemini reply]";
+
+    // Ghi lịch sử vào Supabase
+    const session_id = req.headers["x-session-id"] || "anonymous";
+    const fullHistory = contents.concat({
+      role: "model",
+      parts: [{ text: reply }],
+    });
+
+    const { error: dbError } = await supabase.from("chats").insert([
+      {
+        session_id,
+        history: fullHistory,
+      },
+    ]);
+
+    if (dbError) {
+      console.error("Supabase insert error:", dbError.message);
+    }
 
     return res.status(200).json({ reply });
   } catch (error) {
     console.error("Gemini API error:", error.message || error);
-    return res.status(500).json({ error: "Gemini API failed. Try again later." });
+    return res
+      .status(500)
+      .json({ error: "Gemini API failed. Try again later." });
   }
 }
-
-import supabase from "@/lib/supabase"; // or relative path
-
-// Sau khi có reply:
-await supabase.from("chats").insert([
-  {
-    session_id: req.headers["x-session-id"] || "anonymous",
-    history: contents.concat({
-      role: "model",
-      parts: [{ text: reply }],
-    }),
-  },
-]);
-
