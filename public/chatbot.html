@@ -323,7 +323,8 @@
       senderSpan.className = "user";
       senderSpan.textContent = `${sender}:`;
 
-      const contentDiv = document.create MDN: <div class="bot"></div>
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "bot";
       contentDiv.innerHTML = isHTML ? text : escapeHTML(text);
 
       if (sender === "Bot") {
@@ -393,7 +394,7 @@
         "<": "&lt;",
         ">": "&gt;",
         "'": "&#39;",
-        '"': "&quot;",
+        '"': "&quot;"
       }[tag]));
     }
 
