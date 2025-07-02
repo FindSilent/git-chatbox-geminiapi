@@ -9,6 +9,9 @@ const resetBtn = document.getElementById("reset-chat");
 const toggleDark = document.getElementById("toggle-dark");
 const recordBtn = document.getElementById("record-btn");
 
+const SUPABASE_URL = 'https://your-project-id.supabase.co'; // ← THAY BẰNG CỦA BẠN
+const SUPABASE_KEY = 'your-anon-key';                       // ← THAY BẰNG CỦA BẠN
+
 const sessionId = localStorage.getItem("session_id") || crypto.randomUUID();
 localStorage.setItem("session_id", sessionId);
 
@@ -19,7 +22,7 @@ let recognition;
 function renderMessage(role, text) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
-  div.textContent = `${text}`;
+  div.textContent = text;
   chatBox.appendChild(div);
   chatBox.scrollTop = chatBox.scrollHeight;
 }
@@ -28,25 +31,36 @@ async function sendMessage(prompt) {
   renderMessage("user", prompt);
   thinking.textContent = "Thinking...";
 
-  const res = await fetch("/api/gemini", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      prompt,
-      model: "gemini-2.0-flash",
-      imageBase64: selectedImage,
-      history: chatHistory,
-      sessionId,
-    }),
-  });
+  try {
+    const res = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt,
+        model: "gemini-2.0-flash",
+        imageBase64: selectedImage,
+        history: chatHistory,
+        sessionId,
+      }),
+    });
 
-  const data = await res.json();
-  if (data.reply) {
-    renderMessage("bot", data.reply);
-    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-    chatHistory.push({ role: "model", parts: [{ text: data.reply }] });
-  } else {
-    renderMessage("bot", "❌ Lỗi API");
+    if (!res.ok) throw new Error(`API trả về lỗi ${res.status}`);
+    const data = await res.json();
+
+    if (data.reply) {
+      renderMessage("bot", data.reply);
+      chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+      chatHistory.push({ role: "model", parts: [{ text: data.reply }] });
+
+      // Lưu vào Supabase
+      await saveChat(chatHistory);
+    } else {
+      renderMessage("bot", "❌ Không có phản hồi từ Gemini.");
+      console.error("Không có trường 'reply' trong API:", data);
+    }
+  } catch (err) {
+    console.error("Lỗi gửi tin nhắn:", err);
+    renderMessage("bot", "❌ Lỗi khi gọi API.");
   }
 
   thinking.textContent = "";
@@ -101,18 +115,44 @@ recordBtn.addEventListener("click", () => {
   recognition.start();
 });
 
-// Load lịch sử từ Supabase nếu có session
+// Hàm lưu chat vào Supabase
+async function saveChat(history) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/chats`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates",
+      },
+      body: JSON.stringify({
+        session_id: sessionId,
+        history: JSON.stringify(history),
+        created_at: new Date().toISOString(),
+      }),
+    });
+  } catch (e) {
+    console.warn("Không thể lưu Supabase:", e.message);
+  }
+}
+
+// Load lịch sử từ Supabase
 (async function loadHistory() {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/chats?session_id=eq.${sessionId}&order=created_at.asc`, {
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
-    },
-  });
-  const chats = await res.json();
-  if (chats.length > 0) {
-    const history = JSON.parse(chats[chats.length - 1].history);
-    history.forEach(h => renderMessage(h.role === "user" ? "user" : "bot", h.parts[0].text));
-    chatHistory = history;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/chats?session_id=eq.${sessionId}&order=created_at.asc`, {
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    const chats = await res.json();
+    if (chats.length > 0) {
+      const history = JSON.parse(chats[chats.length - 1].history);
+      history.forEach(h => renderMessage(h.role === "user" ? "user" : "bot", h.parts[0].text));
+      chatHistory = history;
+    }
+  } catch (err) {
+    console.warn("Không thể load lịch sử:", err.message);
   }
 })();
