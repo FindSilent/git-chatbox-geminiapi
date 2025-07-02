@@ -6,99 +6,156 @@
   <title>Gemini Chatbot</title>
   <style>
     :root {
-      --bg: #f2f2f2;
-      --text: #222;
-      --card: #fff;
-      --highlight: #1a73e8;
-      --bot-bg: #f9f9f9;
+      --bg: #f5f7fa;
+      --text: #1a202c;
+      --card: #ffffff;
+      --highlight: #3b82f6;
+      --bot-bg: #e5e7eb;
+      --user-bg: #dbeafe;
+      --border: #e2e8f0;
     }
     body.dark {
-      --bg: #121212;
-      --text: #e0e0e0;
-      --card: #1e1e1e;
-      --bot-bg: #2a2a2a;
+      --bg: #1f2937;
+      --text: #e5e7eb;
+      --card: #374151;
+      --bot-bg: #4b5563;
+      --user-bg: #1e40af;
+      --border: #4b5563;
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
     body {
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       background: var(--bg);
       color: var(--text);
-      padding: 40px;
-      transition: 0.3s;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      transition: all 0.3s ease;
     }
     #chatbox {
-      max-width: 700px;
-      margin: auto;
+      max-width: 800px;
+      width: 100%;
+      margin: 0 auto;
       background: var(--card);
-      border-radius: 8px;
-      padding: 20px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 16px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 40px);
+    }
+    #messages {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
     .msg {
-      margin-bottom: 20px;
+      max-width: 80%;
       position: relative;
-    }
-    .user {
-      font-weight: bold;
-      color: var(--highlight);
+      padding: 12px 16px;
+      border-radius: 12px;
+      line-height: 1.5;
+      word-wrap: break-word;
     }
     .bot {
-      background-color: var(--bot-bg);
-      border-left: 4px solid var(--highlight);
-      padding: 10px;
-      border-radius: 5px;
-      white-space: pre-wrap;
-      overflow-x: auto;
+      background: var(--bot-bg);
+      align-self: flex-start;
+      border-radius: 12px 12px 12px 0;
     }
-    textarea, button, select {
-      margin-top: 10px;
-      padding: 10px;
+    .user {
+      background: var(--user-bg);
+      color: white;
+      align-self: flex-end;
+      border-radius: 12px 12px 0 12px;
+    }
+    .input-container {
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      background: var(--card);
+      border-radius: 0 0 16px 16px;
+    }
+    textarea, select, input[type="file"] {
       width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
       font-size: 1rem;
-      border-radius: 5px;
-      border: 1px solid #ccc;
+      background: var(--card);
+      color: var(--text);
+      margin-bottom: 12px;
+      transition: border-color 0.2s ease;
     }
-    button {
-      cursor: pointer;
+    textarea:focus, select:focus, input[type="file"]:focus {
+      outline: none;
+      border-color: var(--highlight);
     }
     #controls {
       display: flex;
+      gap: 8px;
       flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 10px;
+    }
+    button {
+      padding: 12px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      background: var(--highlight);
+      color: white;
+      transition: background 0.2s ease;
+    }
+    button:hover {
+      background: #2563eb;
     }
     .copy-btn {
       position: absolute;
-      top: 5px;
-      right: 5px;
-      font-size: 0.8em;
-      background: var(--highlight);
-      color: white;
-      border: none;
-      border-radius: 3px;
-      padding: 3px 6px;
-      cursor: pointer;
+      top: 8px;
+      right: 8px;
+      background: rgba(0,0,0,0.1);
+      color: var(--text);
+      font-size: 0.8rem;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .copy-btn:hover {
+      background: rgba(0,0,0,0.2);
+    }
+    #messages::-webkit-scrollbar {
+      width: 8px;
+    }
+    #messages::-webkit-scrollbar-track {
+      background: var(--card);
+    }
+    #messages::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
     }
   </style>
 </head>
 <body>
   <div id="chatbox">
-    <h2>💬 Gemini Chatbot</h2>
     <div id="messages"></div>
-
-    <textarea id="prompt" placeholder="Nhập câu hỏi của bạn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
-    <select id="model">
-      <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-      <option value="gemini-2.0-pro">gemini-2.0-pro</option>
-      <option value="gemini-1.5-pro">gemini-1.5-pro</option>
-    </select>
-    <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
-    <input type="file" id="fileInput" accept=".txt,.pdf,.jpg,.jpeg,.png" />
-
-    <div id="controls">
-      <button onclick="sendMessage()">Gửi</button>
-      <button onclick="resetChat()">🔄 Reset</button>
-      <button onclick="toggleDarkMode()">🌓 Dark Mode</button>
-      <button onclick="exportChat()">📄 Xuất File</button>
+    <div class="input-container">
+      <textarea id="prompt" placeholder="Nhập câu hỏi của bạn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
+      <select id="model">
+        <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+        <option value="gemini-2.0-pro">gemini-2.0-pro</option>
+        <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+      </select>
+      <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
+      <div id="controls">
+        <button onclick="sendMessage()">Gửi</button>
+        <button onclick="resetChat()">🔄 Reset</button>
+        <button onclick="toggleDarkMode()">🌓 Dark Mode</button>
+        <button onclick="exportChat()">📄 Xuất File</button>
+      </div>
     </div>
   </div>
 
@@ -111,16 +168,24 @@
     window.onload = () => {
       const saved = localStorage.getItem(localKey);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        parsed.forEach(msg => {
-          addMessage(msg.sender, formatMarkdown(msg.text), true);
-        });
-        history = parsed
-          .filter(m => m.sender === "You" || m.sender === "Bot")
-          .map(m => ({
-            role: m.sender === "You" ? "user" : "model",
-            parts: [{ text: m.text }],
-          }));
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(msg => {
+              if (msg.sender && msg.text) {
+                addMessage(msg.sender, formatMarkdown(msg.text), true);
+              }
+            });
+            history = parsed
+              .filter(m => m.sender === "You" || m.sender === "Bot")
+              .map(m => ({
+                role: m.sender === "You" ? "user" : "model",
+                parts: [{ text: m.text }],
+              }));
+          }
+        } catch (e) {
+          console.error("Error parsing localStorage:", e);
+        }
       }
       if (localStorage.getItem("darkMode") === "true") {
         document.body.classList.add("dark");
@@ -139,90 +204,91 @@
 
       const thinking = addMessage("Bot", "<em>Đang suy nghĩ...</em>", true);
 
-      if (imageFile) {
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const base64 = reader.result.split(",")[1];
-          const mimeType = imageFile.type;
+      try {
+        if (imageFile) {
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const base64 = reader.result?.split(",")[1];
+            if (!base64) {
+              updateMessage(thinking, "❌ Lỗi: Không đọc được file ảnh.");
+              return;
+            }
+            const mimeType = imageFile.type;
 
-          try {
-            const res = await fetch("/api/gemini", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                prompt,
-                model,
-                history,
-                image: { data: base64, mimeType }
-              }),
-            });
-            const data = await res.json();
-            const reply = data.reply || "Không có phản hồi.";
-            updateMessage(thinking, formatMarkdown(reply));
-            history.push({ role: "user", parts: [{ text: prompt }] });
-            history.push({ role: "model", parts: [{ text: reply }] });
-            saveToLocal();
-            document.getElementById("imageInput").value = "";
-          } catch (err) {
-            updateMessage(thinking, "❌ Lỗi khi gọi API.");
-          }
-        };
-        reader.readAsDataURL(imageFile);
-      } else {
-        try {
+            const body = {
+              prompt: prompt || "",
+              model,
+              history: Array.isArray(history) ? history : [],
+              image: { data: base64, mimeType }
+            };
+
+            try {
+              const res = await fetch("/api/gemini", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || "API error");
+              const reply = data.reply || "Không có phản hồi.";
+              updateMessage(thinking, formatMarkdown(reply));
+              history.push({ role: "user", parts: [{ text: prompt || "[Image]" }] });
+              history.push({ role: "model", parts: [{ text: reply }] });
+              saveToLocal();
+              document.getElementById("imageInput").value = "";
+            } catch (err) {
+              updateMessage(thinking, `❌ Lỗi: ${err.message || "Không thể gọi API."}`);
+            }
+          };
+          reader.onerror = () => {
+            updateMessage(thinking, "❌ Lỗi: Không đọc được file ảnh.");
+          };
+          reader.readAsDataURL(imageFile);
+        } else {
+          const body = {
+            prompt,
+            model,
+            history: Array.isArray(history) ? history : [],
+          };
+
           const res = await fetch("/api/gemini", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt, model, history }),
+            body: JSON.stringify(body),
           });
           const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "API error");
           const reply = data.reply || "Không có phản hồi.";
           updateMessage(thinking, formatMarkdown(reply));
           history.push({ role: "user", parts: [{ text: prompt }] });
           history.push({ role: "model", parts: [{ text: reply }] });
           saveToLocal();
-        } catch (err) {
-          updateMessage(thinking, "❌ Lỗi khi gọi API.");
         }
+      } catch (err) {
+        updateMessage(thinking, `❌ Lỗi: ${err.message || "Không thể gọi API."}`);
       }
     }
 
     function addMessage(sender, text, isHTML = false) {
       const msgDiv = document.createElement("div");
-      msgDiv.className = "msg";
-
-      const avatar = document.createElement("span");
-      avatar.style.fontSize = "1.5em";
-      avatar.style.marginRight = "8px";
-      avatar.textContent = sender === "You" ? "🧑" : "🤖";
-
-      const senderSpan = document.createElement("div");
-      senderSpan.className = "user";
-      senderSpan.textContent = `${sender}:`;
-
-      const contentDiv = document.createElement("div");
-      contentDiv.className = "bot";
-      contentDiv.innerHTML = isHTML ? text : escapeHTML(text);
+      msgDiv.className = `msg ${sender.toLowerCase()}`;
+      msgDiv.innerHTML = isHTML ? text : escapeHTML(text || "");
 
       if (sender === "Bot") {
         const copyBtn = document.createElement("button");
         copyBtn.className = "copy-btn";
         copyBtn.textContent = "📋 Copy";
         copyBtn.onclick = () => {
-          navigator.clipboard.writeText(contentDiv.textContent);
+          navigator.clipboard.writeText(msgDiv.textContent);
           copyBtn.textContent = "✅ Copied!";
           setTimeout(() => (copyBtn.textContent = "📋 Copy"), 1500);
         };
         msgDiv.appendChild(copyBtn);
       }
 
-      msgDiv.appendChild(avatar);
-      msgDiv.appendChild(senderSpan);
-      msgDiv.appendChild(contentDiv);
       messagesDiv.appendChild(msgDiv);
-
       window.scrollTo(0, document.body.scrollHeight);
-      return contentDiv;
+      return msgDiv;
     }
 
     function updateMessage(node, newText) {
@@ -242,6 +308,7 @@
     }
 
     function formatMarkdown(text) {
+      if (!text || typeof text !== "string") return "";
       return text
         .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
         .replace(/\*(.*?)\*/g, "<em>$1</em>")
@@ -250,35 +317,46 @@
     }
 
     function escapeHTML(str) {
+      if (!str || typeof str !== "string") return "";
       return str.replace(/[&<>'"]/g, tag => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;',
-        "'": '&#39;', '"': '&quot;',
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;',
       }[tag]));
     }
 
     function saveToLocal() {
       const saved = history.map(h => ({
         sender: h.role === "user" ? "You" : "Bot",
-        text: h.parts[0].text
+        text: h.parts[0]?.text || ""
       }));
-      localStorage.setItem(localKey, JSON.stringify(saved));
+      try {
+        localStorage.setItem(localKey, JSON.stringify(saved));
+      } catch (e) {
+        console.error("Error saving to localStorage:", e);
+      }
     }
 
     function exportChat() {
       const saved = localStorage.getItem(localKey);
       if (!saved) return alert("Không có hội thoại để xuất.");
-      const messages = JSON.parse(saved);
-      const lines = messages.map(m => `${m.sender}: ${m.text}`).join("\n\n");
-      const blob = new Blob([lines], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "chat_history.txt";
-      a.click();
-      URL.revokeObjectURL(url);
+      try {
+        const messages = JSON.parse(saved);
+        const lines = messages.map(m => `${m.sender}: ${m.text}`).join("\n\n");
+        const blob = new Blob([lines], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "chat_history.txt";
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert("Lỗi khi xuất hội thoại: " + e.message);
+      }
     }
 
-    // ENTER = gửi, SHIFT+ENTER = xuống dòng
     promptInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -286,7 +364,6 @@
       }
     });
 
-    // export functions globally
     window.sendMessage = sendMessage;
     window.resetChat = resetChat;
     window.toggleDarkMode = toggleDarkMode;
