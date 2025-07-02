@@ -1,40 +1,42 @@
-// pages/api/gemini.js (Next.js)
-
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
-
-const DEFAULT_MODEL = "gemini-2.0-flash";
+// api/gemini.js
+const DEFAULT_MODEL = "gemini-1.5-pro"; // hỗ trợ ảnh tốt hơn
+import supabase from "../lib/supabase"; // chỉnh đúng path nếu cần
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { prompt, model, history } = req.body;
+  const { prompt, model, history, image } = req.body;
 
-  if (!prompt?.trim()) {
-    return res.status(400).json({ error: "Prompt is required" });
+  if (!prompt?.trim() && !image) {
+    return res.status(400).json({ error: "Prompt or image is required" });
   }
 
   const modelName = model || DEFAULT_MODEL;
   const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    return res.status(500).json({ error: "Missing Gemini API key" });
-  }
+  if (!apiKey) return res.status(500).json({ error: "Missing Gemini API key" });
 
   const contents = Array.isArray(history) ? [...history] : [];
-  contents.push({
-    role: "user",
-    parts: [{ text: prompt }],
-  });
+
+  const parts = [];
+
+  if (image?.data && image?.mimeType) {
+    parts.push({
+      inlineData: {
+        mimeType: image.mimeType,
+        data: image.data,
+      },
+    });
+  }
+
+  if (prompt?.trim()) {
+    parts.push({ text: prompt.trim() });
+  }
+
+  contents.push({ role: "user", parts });
 
   try {
-    // Gọi Gemini
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
       {
@@ -47,32 +49,22 @@ export default async function handler(req, res) {
     const data = await response.json();
 
     if (!response.ok || !data?.candidates?.length) {
-      console.error("Gemini API error:", data);
-      return res
-        .status(500)
-        .json({ error: data?.error?.message || "No candidate reply" });
+      throw new Error(data?.error?.message || "No candidate response");
     }
 
-    const reply =
-      data.candidates[0]?.content?.parts?.[0]?.text ?? "[Empty Gemini reply]";
+    const reply = data.candidates[0]?.content?.parts?.[0]?.text ?? "[Gemini không có phản hồi]";
 
     // Lưu vào Supabase
-    const session_id = req.headers["x-session-id"] || "anonymous";
-
-    const { error: dbError } = await supabase.from("chats").insert([
+    await supabase.from("chats").insert([
       {
-        session_id,
+        session_id: req.headers["x-session-id"] || "anonymous",
         history: [...contents, { role: "model", parts: [{ text: reply }] }],
       },
     ]);
 
-    if (dbError) {
-      console.error("Supabase error:", dbError.message);
-    }
-
     return res.status(200).json({ reply });
   } catch (error) {
-    console.error("Gemini Handler Exception:", error.message);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error("Gemini API error:", error.message || error);
+    return res.status(500).json({ error: "Gemini API failed. Try again later." });
   }
 }
