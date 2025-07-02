@@ -179,7 +179,7 @@
   <div id="chatbox">
     <div id="messages"></div>
     <div class="input-container">
-      <textarea id="prompt" placeholder="Nhập câu hỏi của bạn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
+      <textarea id="prompt" placeholder="Enter any question... (Enter to send, Shift+Enter to go to new line)"></textarea>
       <div id="controls">
         <label class="file-upload">
           Upload
@@ -188,7 +188,7 @@
         <span id="file-name" class="file-name"></span>
         <button onclick="resetChat()">🔄 Clear</button>
         <button onclick="toggleDarkMode()">🌓</button>
-        <button onclick="sendMessage()">↑</button>
+        <button class="submitbtn" onclick="sendMessage()">↑</button>
       </div>
     </div>
   </div>
