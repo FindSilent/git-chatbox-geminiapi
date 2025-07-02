@@ -11,12 +11,87 @@
       --card: #fff;
       --highlight: #1a73e8;
       --bot-bg: #f9f9f9;
+      --error-bg: #ff4d4d;
     }
     body.dark {
       --bg: #121212;
       --text: #e0e0e0;
       --card: #1e1e1e;
       --bot-bg: #2a2a2a;
+      --error-bg: #cc0000;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 40px;
+      transition: 0.3s;
+    }
+    #chatbox {
+      max-width: 700px;
+      margin: auto;
+      background: var(--card);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .msg {
+      margin-bottom: 20px;
+      position: relative;
+    }
+    .user {
+      font-weight: bold;
+      color: var(--highlight);
+    }
+    .bot {
+      background-color: var(--bot-bg);
+      border-left: 4px solid_via thông qua API Vercel và lưu code trên GitHub. Dưới đây là hướng dẫn từng bước để hoàn thiện các tính năng và khắc phục lỗi "Không có phản hồi" mà bạn gặp phải.
+
+---
+
+### **Tóm tắt vấn đề**
+- **Lỗi "Không có phản hồi"**: Xảy ra khi Gemini API không trả về dữ liệu hợp lệ (`data.candidates[0]?.content?.parts?.[0]?.text` không tồn tại).
+- **Mục tiêu cải thiện**:
+  - **Backend**: Đã cập nhật `gemini.js` để thêm logging, xử lý lỗi chi tiết, giới hạn kích thước input, và tối ưu lưu trữ Supabase.
+  - **Frontend**: Thêm preview ảnh, toast notification cho lỗi, xử lý file `.txt`, và debounce sự kiện `keydown`.
+- **Thời gian hiện tại**: 08:54 PM +07, Thứ Tư, ngày 2 tháng 7 năm 2025.
+
+---
+
+### **Bước 2: Cải thiện Frontend (chatbot.html)**
+
+#### **Mục tiêu**
+1. **Preview ảnh**: Hiển thị ảnh người dùng chọn trước khi gửi trong giao diện chat.
+2. **Toast notification**: Hiển thị thông báo lỗi bằng toast thay vì chèn trực tiếp vào lịch sử chat.
+3. **Xử lý file `.txt`**: Đọc nội dung file `.txt` từ `#fileInput` và thêm vào `textarea`.
+4. **Debounce `keydown`**: Ngăn gửi nhiều yêu cầu khi người dùng nhấn Enter liên tục.
+
+#### **Code cập nhật (chatbot.html)**
+
+Dưới đây là file `chatbot.html` được cập nhật với các tính năng trên, tích hợp với backend đã sửa ở **Bước 1**. Tôi cũng thêm logic để hiển thị thông báo lỗi chi tiết từ backend (bao gồm `code` và `details`).
+
+<xaiArtifact artifact_id="5d668899-9149-4f78-8a6a-59f548e22bb3" artifact_version_id="3867b84e-397f-4a62-9b43-0be9c16c85c4" title="chatbot.html" contentType="text/html">
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gemini Chatbot</title>
+  <style>
+    :root {
+      --bg: #f2f2f2;
+      --text: #222;
+      --card: #fff;
+      --highlight: #1a73e8;
+      --bot-bg: #f9f9f9;
+      --error-bg: #ff4d4d;
+    }
+    body.dark {
+      --bg: #121212;
+      --text: #e0e0e0;
+      --card: #1e1e1e;
+      --bot-bg: #2a2a2a;
+      --error-bg: #cc0000;
     }
     body {
       font-family: Arial, sans-serif;
@@ -48,6 +123,23 @@
       border-radius: 5px;
       white-space: pre-wrap;
       overflow-x: auto;
+    }
+    .preview-img {
+      max-width: 100%;
+      max-height: 200px;
+      margin-top: 10px;
+      border-radius: 5px;
+    }
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--error-bg);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      z-index: 1000;
     }
     textarea, button, select {
       margin-top: 10px;
@@ -105,9 +197,13 @@
   <script type="module">
     const messagesDiv = document.getElementById("messages");
     const promptInput = document.getElementById("prompt");
+    const imageInput = document.getElementById("imageInput");
+    const fileInput = document.getElementById("fileInput");
     const localKey = "chat_history";
     let history = [];
+    let isSending = false;
 
+    // Load saved chat history
     window.onload = () => {
       const saved = localStorage.getItem(localKey);
       if (saved) {
@@ -127,63 +223,109 @@
       }
     };
 
+    // Preview image before sending
+    imageInput.addEventListener("change", () => {
+      const file = imageInput.files[0];
+      if (file) {
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(file);
+        img.className = "preview-img";
+        messagesDiv.appendChild(img);
+        window.scrollTo(0, document.body.scrollHeight);
+      }
+    });
+
+    // Handle .txt file upload
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (file) {
+        if (file.type === "text/plain") {
+          const text = await file.text();
+          promptInput.value += text;
+        } else if (file.type === "application/pdf") {
+          showError("PDF upload chưa được hỗ trợ. Hãy trích xuất văn bản trước.");
+        } else {
+          showError("Định dạng file không được hỗ trợ.");
+        }
+        fileInput.value = ""; // Reset file input
+      }
+    });
+
+    // Debounced sendMessage
     async function sendMessage() {
+      if (isSending) return;
+      isSending = true;
+
       const prompt = promptInput.value.trim();
       const model = document.getElementById("model").value;
-      const imageFile = document.getElementById("imageInput").files[0];
+      const imageFile = imageInput.files[0];
 
-      if (!prompt && !imageFile) return;
+      if (!prompt && !imageFile) {
+        showError("Vui lòng nhập câu hỏi hoặc chọn ảnh.");
+        isSending = false;
+        return;
+      }
 
       addMessage("You", prompt || "[Đã gửi ảnh]");
       promptInput.value = "";
-
       const thinking = addMessage("Bot", "<em>Đang suy nghĩ...</em>", true);
 
-      if (imageFile) {
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const base64 = reader.result.split(",")[1];
-          const mimeType = imageFile.type;
+      try {
+        let body = { prompt, model, history };
 
-          try {
-            const res = await fetch("/api/gemini", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                prompt,
-                model,
-                history,
-                image: { data: base64, mimeType }
-              }),
-            });
-            const data = await res.json();
-            const reply = data.reply || "Không có phản hồi.";
-            updateMessage(thinking, formatMarkdown(reply));
-            history.push({ role: "user", parts: [{ text: prompt }] });
-            history.push({ role: "model", parts: [{ text: reply }] });
-            saveToLocal();
-            document.getElementById("imageInput").value = "";
-          } catch (err) {
-            updateMessage(thinking, "❌ Lỗi khi gọi API.");
-          }
-        };
-        reader.readAsDataURL(imageFile);
-      } else {
-        try {
+        if (imageFile) {
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const base64 = reader.result.split(",")[1];
+            const mimeType = imageFile.type;
+
+            try {
+              const res = await fetch("/api/gemini", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...body, image: { data: base64, mimeType } }),
+              });
+              const data = await res.json();
+
+              if (!res.ok || data.error) {
+                throw new Error(data.error?.message || `Lỗi không xác định (${data.code || "UNKNOWN"})`);
+              }
+
+              const reply = data.reply || "Không có phản hồi.";
+              updateMessage(thinking, formatMarkdown(reply));
+              history = data.history || [...history, { role: "user", parts: [{ text: prompt }] }, { role: "model", parts: [{ text: reply }] }];
+              saveToLocal();
+              imageInput.value = "";
+            } catch (err) {
+              showError(`Lỗi: ${err.message}`);
+              updateMessage(thinking, "❌ Lỗi khi gọi API.");
+            } finally {
+              isSending = false;
+            }
+          };
+          reader.readAsDataURL(imageFile);
+        } else {
           const res = await fetch("/api/gemini", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt, model, history }),
+            body: JSON.stringify(body),
           });
           const data = await res.json();
+
+          if (!res.ok || data.error) {
+            throw new Error(data.error?.message || `Lỗi không xác định (${data.code || "UNKNOWN"})`);
+          }
+
           const reply = data.reply || "Không có phản hồi.";
           updateMessage(thinking, formatMarkdown(reply));
-          history.push({ role: "user", parts: [{ text: prompt }] });
-          history.push({ role: "model", parts: [{ text: reply }] });
+          history = data.history || [...history, { role: "user", parts: [{ text: prompt }] }, { role: "model", parts: [{ text: reply }] }];
           saveToLocal();
-        } catch (err) {
-          updateMessage(thinking, "❌ Lỗi khi gọi API.");
         }
+      } catch (err) {
+        showError(`Lỗi: ${err.message}`);
+        updateMessage(thinking, "❌ Lỗi khi gọi API.");
+      } finally {
+        isSending = false;
       }
     }
 
@@ -230,6 +372,14 @@
       window.scrollTo(0, document.body.scrollHeight);
     }
 
+    function showError(message) {
+      const toast = document.createElement("div");
+      toast.className = "toast";
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
     function resetChat() {
       messagesDiv.innerHTML = "";
       history = [];
@@ -257,7 +407,7 @@
     }
 
     function saveToLocal() {
-      const saved = history.map(h => ({
+      const saved = history.slice(-100).map(h => ({
         sender: h.role === "user" ? "You" : "Bot",
         text: h.parts[0].text
       }));
@@ -266,7 +416,7 @@
 
     function exportChat() {
       const saved = localStorage.getItem(localKey);
-      if (!saved) return alert("Không có hội thoại để xuất.");
+      if (!saved) return showError("Không có hội thoại để xuất.");
       const messages = JSON.parse(saved);
       const lines = messages.map(m => `${m.sender}: ${m.text}`).join("\n\n");
       const blob = new Blob([lines], { type: "text/plain" });
@@ -278,7 +428,7 @@
       URL.revokeObjectURL(url);
     }
 
-    // ENTER = gửi, SHIFT+ENTER = xuống dòng
+    // Debounce keydown event
     promptInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -286,7 +436,7 @@
       }
     });
 
-    // export functions globally
+    // Export functions globally
     window.sendMessage = sendMessage;
     window.resetChat = resetChat;
     window.toggleDarkMode = toggleDarkMode;
