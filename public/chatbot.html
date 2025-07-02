@@ -64,6 +64,23 @@
       display: flex;
       gap: 10px;
       margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    code {
+      background: #eee;
+      padding: 2px 4px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    pre {
+      background: #eee;
+      padding: 10px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+    a {
+      color: var(--highlight);
+      text-decoration: underline;
     }
   </style>
 </head>
@@ -72,7 +89,7 @@
     <h2>💬 Gemini Chatbot</h2>
     <div id="messages"></div>
 
-    <textarea id="prompt" placeholder="Nhập câu hỏi của bạn..."></textarea>
+    <textarea id="prompt" rows="3" placeholder="Nhập câu hỏi của bạn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
     <select id="model">
       <option value="gemini-2.0-flash">gemini-2.0-flash</option>
       <option value="gemini-2.0-pro">gemini-2.0-pro</option>
@@ -89,11 +106,10 @@
 
   <script>
     const messagesDiv = document.getElementById("messages");
+    const promptInput = document.getElementById("prompt");
     const localKey = "chat_history";
-
     let history = [];
 
-    // Load chat history + dark mode
     window.onload = () => {
       const saved = localStorage.getItem(localKey);
       if (saved) {
@@ -114,15 +130,23 @@
       }
     };
 
+    promptInput.addEventListener("keydown", e => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
     async function sendMessage() {
-      const prompt = document.getElementById("prompt").value.trim();
+      const prompt = promptInput.value.trim();
       const model = document.getElementById("model").value;
       if (!prompt) return;
 
       addMessage("You", prompt);
-      document.getElementById("prompt").value = "";
+      promptInput.value = "";
+      promptInput.focus();
 
-      const thinking = addMessage("Bot", "<em>Thinking...</em>", true);
+      const thinking = addMessage("Bot", "<em>🤔 Đang suy nghĩ...</em>", true);
 
       try {
         const res = await fetch("/api/gemini", {
@@ -132,7 +156,10 @@
         });
 
         const data = await res.json();
-        const reply = data.reply || "No response";
+
+        if (!res.ok) throw new Error(data.error || "Unknown error");
+
+        const reply = data.reply || "Không có phản hồi.";
         const formatted = formatMarkdown(reply);
         updateMessage(thinking, formatted);
 
@@ -141,7 +168,8 @@
 
         saveToLocal();
       } catch (err) {
-        updateMessage(thinking, "❌ Lỗi khi gọi API.");
+        console.error("Error:", err);
+        updateMessage(thinking, `❌ Lỗi: ${err.message}`);
       }
     }
 
@@ -167,9 +195,7 @@
       msgDiv.appendChild(contentDiv);
       messagesDiv.appendChild(msgDiv);
 
-      // Auto scroll
       window.scrollTo(0, document.body.scrollHeight);
-
       return contentDiv;
     }
 
@@ -179,9 +205,11 @@
     }
 
     function resetChat() {
-      messagesDiv.innerHTML = "";
-      history = [];
-      localStorage.removeItem(localKey);
+      if (confirm("Bạn có chắc muốn xóa toàn bộ hội thoại?")) {
+        messagesDiv.innerHTML = "";
+        history = [];
+        localStorage.removeItem(localKey);
+      }
     }
 
     function toggleDarkMode() {
@@ -191,9 +219,14 @@
 
     function formatMarkdown(text) {
       return text
+        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
         .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
         .replace(/\*(.*?)\*/g, "<em>$1</em>")
+        .replace(/```([\s\S]*?)```/g, "<pre><code>$1</code></pre>")
         .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
         .replace(/\n/g, "<br>");
     }
 
@@ -205,7 +238,7 @@
     }
 
     function saveToLocal() {
-      const saved = history.map((h, i) => ({
+      const saved = history.map(h => ({
         sender: h.role === "user" ? "You" : "Bot",
         text: h.parts[0].text
       }));
