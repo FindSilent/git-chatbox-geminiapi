@@ -143,6 +143,15 @@
       height: 100%;
       cursor: pointer;
     }
+    .file-name {
+      font-size: 0.9rem;
+      color: var(--text);
+      margin-left: 8px;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .copy-btn {
       position: absolute;
       top: -25px;
@@ -176,9 +185,9 @@
       <div id="controls">
         <label class="file-upload">
           Tải
-          <input type="file" id="imageInput" 
-                accept="image/png, image/jpeg, image/webp">
+          <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
         </label>
+        <span id="file-name" class="file-name"></span>
         <button onclick="resetChat()">🔄 Reset</button>
         <button onclick="toggleDarkMode()">🌓 Dark Mode</button>
         <button onclick="sendMessage()">Gửi</button>
@@ -189,6 +198,8 @@
   <script type="module">
     const messagesDiv = document.getElementById("messages");
     const promptInput = document.getElementById("prompt");
+    const imageInput = document.getElementById("imageInput");
+    const fileNameSpan = document.getElementById("file-name");
     const localKey = "chat_history";
     let history = [];
 
@@ -218,6 +229,7 @@
           }
         } catch (e) {
           console.error("Error parsing localStorage:", e);
+          localStorage.removeItem(localKey); // Clear invalid data
         }
       }
       if (localStorage.getItem("darkMode") === "true") {
@@ -228,7 +240,7 @@
     async function sendMessage() {
       const prompt = promptInput.value.trim();
       const model = "gemini-2.0-flash";
-      const imageFile = document.getElementById("imageInput").files[0];
+      const imageFile = imageInput.files[0];
 
       if (!prompt && !imageFile) {
         console.warn("No prompt or image provided");
@@ -276,7 +288,9 @@
             history.push({ role: "user", parts: [{ text: prompt || "[Image]" }] });
             history.push({ role: "model", parts: [{ text: reply }] });
             saveToLocal(prompt || "[Image]", imageData);
-            document.getElementById("imageInput").value = "";
+            promptInput.value = ""; // Clear textarea
+            imageInput.value = ""; // Clear file input
+            fileNameSpan.textContent = ""; // Clear file name
           } catch (err) {
             console.error("API error:", err);
             updateMessage(thinking, `❌ Lỗi: ${err.message || "Không thể gọi API."}`);
@@ -313,6 +327,7 @@
           history.push({ role: "user", parts: [{ text: prompt }] });
           history.push({ role: "model", parts: [{ text: reply }] });
           saveToLocal(prompt);
+          promptInput.value = ""; // Clear textarea
         } catch (err) {
           console.error("API error:", err);
           updateMessage(thinking, `❌ Lỗi: ${err.message || "Không thể gọi API."}`);
@@ -365,6 +380,9 @@
       messagesDiv.innerHTML = "";
       history = [];
       localStorage.removeItem(localKey);
+      promptInput.value = ""; // Clear textarea
+      imageInput.value = ""; // Clear file input
+      fileNameSpan.textContent = ""; // Clear file name
     }
 
     function toggleDarkMode() {
@@ -376,21 +394,27 @@
     function formatMarkdown(text) {
       console.log("Formatting markdown:", text);
       if (!text || typeof text !== "string") return "";
-      return text
-        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-        .replace(/\*(.*?)\*/g, "<em>$1</em>")
-        .replace(/`([^`]+)`/g, "<code>$1</code>")
-        .replace(/\n/g, "<br>");
+      try {
+        return text
+          .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+          .replace(/\*(.*?)\*/g, "<em>$1</em>")
+          .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\n/g, "<br>");
+      } catch (e) {
+        console.error("Error formatting markdown:", e);
+        return escapeHTML(text); // Fallback to escaped text
+      }
     }
 
     function escapeHTML(str) {
       if (!str || typeof str !== "string") return "";
-      return str.replace(/[&<>'"]/g, tag => ({
+      return str.replace(/[&<>'"`]/g, tag => ({
         '&': '&amp;',
         '<': '&lt;',
         '>': '&gt;',
-        "'": '&apos;',
+        "'": '&#39;',
         '"': '&quot;',
+        '`': '&#96;',
       }[tag]));
     }
 
@@ -413,6 +437,14 @@
         e.preventDefault();
         console.log("Enter key pressed, sending message");
         sendMessage();
+      }
+    });
+
+    imageInput.addEventListener("change", () => {
+      if (imageInput.files.length > 0) {
+        fileNameSpan.textContent = imageInput.files[0].name;
+      } else {
+        fileNameSpan.textContent = "";
       }
     });
 
