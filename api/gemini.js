@@ -1,3 +1,4 @@
+// api/gemini.js
 const DEFAULT_MODEL = "gemini-2.0-flash";
 
 export default async function handler(req, res) {
@@ -7,12 +8,16 @@ export default async function handler(req, res) {
 
   const { prompt, model, history } = req.body;
 
-  if (!prompt) {
+  if (!prompt?.trim()) {
     return res.status(400).json({ error: "Prompt is required" });
   }
 
   const modelName = model || DEFAULT_MODEL;
   const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    return res.status(500).json({ error: "Missing Gemini API key" });
+  }
 
   const contents = Array.isArray(history) ? [...history] : [];
   contents.push({
@@ -32,12 +37,15 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    const reply =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text || "[Empty Gemini reply]";
+    if (!response.ok || !data?.candidates?.length) {
+      throw new Error(data?.error?.message || "No candidate response");
+    }
 
-    res.status(200).json({ reply });
+    const reply = data.candidates[0]?.content?.parts?.[0]?.text ?? "[Empty Gemini reply]";
+
+    return res.status(200).json({ reply });
   } catch (error) {
-    console.error("Gemini API error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Gemini API error:", error.message || error);
+    return res.status(500).json({ error: "Gemini API failed. Try again later." });
   }
 }
