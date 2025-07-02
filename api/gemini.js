@@ -3,7 +3,7 @@ import supabase from "../lib/supabase"; // chỉnh đúng path nếu cần
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed", code: "METHOD_NOT_ALLOWED" });
+    return res.status(405).json({ error: "Method not allowed", route: "gemini.js", code: "METHOD_NOT_ALLOWED" });
   }
 
   const { prompt, model, history, image } = req.body;
@@ -34,7 +34,7 @@ export default async function handler(req, res) {
   if (image?.data && image?.mimeType) {
     parts.push({
       inlineData: {
-        mimeType: image.mimeType, // Đảm bảo mimeType hợp lệ (image/png, image/jpeg, image/webp)
+        mimeType: image.mimeType,
         data: image.data,
       },
     });
@@ -90,13 +90,28 @@ export default async function handler(req, res) {
     ]);
 
     if (error) {
-      console.error("Supabase error:", error.message);
-      return res.status(500).json({ error: "Failed to save chat to database", route: "gemini.js", code: "SUPABASE_ERROR" });
+      console.error("Supabase error details:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+      return res.status(500).json({
+        error: `Failed to save chat to database: ${error.message}`,
+        route: "gemini.js",
+        code: "SUPABASE_ERROR",
+        details: error.details || null,
+      });
     }
 
     return res.status(200).json({ reply, history: [...contents, { role: "model", parts: [{ text: reply }] }] });
   } catch (error) {
     console.error("Gemini API error:", error.message || error);
-    return res.status(500).json({ error: "Gemini API failed. Try again later.", route: "gemini.js", code: "API_REQUEST_FAILED", details: error.message });
+    return res.status(500).json({
+      error: "Gemini API failed. Try again later.",
+      route: "gemini.js",
+      code: "API_REQUEST_FAILED",
+      details: error.message,
+    });
   }
 }
