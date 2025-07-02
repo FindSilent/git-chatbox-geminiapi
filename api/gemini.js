@@ -1,6 +1,6 @@
 // api/gemini.js
 
-import supabase from "/lib/supabase"; // sửa đường dẫn nếu không dùng alias
+import supabase from "../../lib/supabase"; // sửa đường dẫn nếu không dùng alias
 
 const DEFAULT_MODEL = "gemini-2.0-flash";
 
