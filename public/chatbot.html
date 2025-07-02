@@ -66,9 +66,6 @@
       gap: 10px;
       margin-top: 10px;
     }
-    #fileInput {
-      margin-top: 10px;
-    }
     .copy-btn {
       position: absolute;
       top: 5px;
@@ -88,7 +85,7 @@
     <h2>💬 Gemini Chatbot</h2>
     <div id="messages"></div>
 
-    <textarea id="prompt" placeholder="Nhập câu hỏi của bạn..."></textarea>
+    <textarea id="prompt" placeholder="Nhập câu hỏi của bạn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
     <select id="model">
       <option value="gemini-2.0-flash">gemini-2.0-flash</option>
       <option value="gemini-2.0-pro">gemini-2.0-pro</option>
@@ -131,25 +128,23 @@
     };
 
     async function sendMessage() {
-      const prompt = document.getElementById("prompt").value.trim();
+      const prompt = promptInput.value.trim();
       const model = document.getElementById("model").value;
       const imageFile = document.getElementById("imageInput").files[0];
-    
+
       if (!prompt && !imageFile) return;
-    
+
       addMessage("You", prompt || "[Đã gửi ảnh]");
-      document.getElementById("prompt").value = "";
-    
+      promptInput.value = "";
+
       const thinking = addMessage("Bot", "<em>Đang suy nghĩ...</em>", true);
-    
-      let imageBase64 = null;
-    
+
       if (imageFile) {
         const reader = new FileReader();
         reader.onload = async () => {
           const base64 = reader.result.split(",")[1];
           const mimeType = imageFile.type;
-    
+
           try {
             const res = await fetch("/api/gemini", {
               method: "POST",
@@ -158,50 +153,39 @@
                 prompt,
                 model,
                 history,
-                image: {
-                  data: base64,
-                  mimeType,
-                },
+                image: { data: base64, mimeType }
               }),
             });
-    
             const data = await res.json();
             const reply = data.reply || "Không có phản hồi.";
             updateMessage(thinking, formatMarkdown(reply));
-    
             history.push({ role: "user", parts: [{ text: prompt }] });
             history.push({ role: "model", parts: [{ text: reply }] });
-    
             saveToLocal();
-            document.getElementById("imageInput").value = ""; // clear file input
+            document.getElementById("imageInput").value = "";
           } catch (err) {
             updateMessage(thinking, "❌ Lỗi khi gọi API.");
           }
         };
         reader.readAsDataURL(imageFile);
       } else {
-        // Trường hợp không có ảnh
         try {
           const res = await fetch("/api/gemini", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ prompt, model, history }),
           });
-    
           const data = await res.json();
           const reply = data.reply || "Không có phản hồi.";
           updateMessage(thinking, formatMarkdown(reply));
-    
           history.push({ role: "user", parts: [{ text: prompt }] });
           history.push({ role: "model", parts: [{ text: reply }] });
-    
           saveToLocal();
         } catch (err) {
           updateMessage(thinking, "❌ Lỗi khi gọi API.");
         }
       }
     }
-
 
     function addMessage(sender, text, isHTML = false) {
       const msgDiv = document.createElement("div");
@@ -294,41 +278,19 @@
       URL.revokeObjectURL(url);
     }
 
-    document.getElementById("fileInput").addEventListener("change", async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-
-      reader.onload = async () => {
-        let content = reader.result;
-
-        if (file.type.startsWith("image/")) {
-          content = `Người dùng đã gửi hình ảnh: ${file.name}`;
-          promptInput.value = content;
-          sendMessage();
-        } else if (file.name.endsWith(".txt")) {
-          promptInput.value = content;
-          sendMessage();
-        }
-      };
-
-      if (file.type === "application/pdf") {
-        const buffer = await file.arrayBuffer();
-        const pdfjsLib = await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.mjs");
-        const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-        let text = "";
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          text += content.items.map(item => item.str).join(" ") + "\n";
-        }
-        promptInput.value = text.slice(0, 3000);
+    // ENTER = gửi, SHIFT+ENTER = xuống dòng
+    promptInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
         sendMessage();
-      } else {
-        reader.readAsText(file);
       }
     });
+
+    // export functions globally
+    window.sendMessage = sendMessage;
+    window.resetChat = resetChat;
+    window.toggleDarkMode = toggleDarkMode;
+    window.exportChat = exportChat;
   </script>
 </body>
 </html>
