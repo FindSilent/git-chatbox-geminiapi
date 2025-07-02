@@ -10,21 +10,21 @@ export default async function handler(req, res) {
 
   // Kiểm tra input
   if (!prompt?.trim() && !image) {
-    return res.status(400).json({ error: "Prompt or image is required", code: "MISSING_INPUT" });
+    return res.status(400).json({ error: "Prompt or image is required", route: "gemini.js", code: "MISSING_INPUT" });
   }
 
   // Giới hạn kích thước
   if (prompt?.length > 10000) {
-    return res.status(400).json({ error: "Prompt exceeds 10,000 characters", code: "PROMPT_TOO_LONG" });
+    return res.status(400).json({ error: "Prompt exceeds 10,000 characters", route: "gemini.js", code: "PROMPT_TOO_LONG" });
   }
   if (image?.data?.length > 5 * 1024 * 1024) {
-    return res.status(400).json({ error: "Image size exceeds 5MB limit", code: "IMAGE_TOO_LARGE" });
+    return res.status(400).json({ error: "Image size exceeds 5MB limit", route: "gemini.js", code: "IMAGE_TOO_LARGE" });
   }
 
   const modelName = model || DEFAULT_MODEL;
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "Missing Gemini API key", code: "MISSING_API_KEY" });
+    return res.status(500).json({ error: "Missing Gemini API key", route: "gemini.js", code: "MISSING_API_KEY" });
   }
 
   const contents = Array.isArray(history) ? [...history] : [];
@@ -34,7 +34,7 @@ export default async function handler(req, res) {
   if (image?.data && image?.mimeType) {
     parts.push({
       inlineData: {
-        mimeType: image.mimeType,
+        mimeType: image.mimeType, // Đảm bảo mimeType hợp lệ (image/png, image/jpeg, image/webp)
         data: image.data,
       },
     });
@@ -57,17 +57,29 @@ export default async function handler(req, res) {
     );
 
     const data = await response.json();
+    console.log("Gemini API response:", JSON.stringify(data, null, 2)); // Log để debug
 
-    if (!response.ok || !data?.candidates?.length) {
+    if (!response.ok) {
       return res.status(response.status).json({
-        error: data?.error?.message || "No candidate response",
+        error: data?.error?.message || "Gemini API request failed",
+        route: "gemini.js",
         code: data?.error?.code || "API_RESPONSE_ERROR",
+        details: data?.error?.details || null,
       });
     }
 
-    const reply = data.candidates[0]?.content?.parts?.[0]?.text ?? "[Gemini không có phản hồi]";
+    if (!data?.candidates?.length || !data.candidates[0]?.content?.parts?.length) {
+      return res.status(500).json({
+        error: "No valid response from Gemini API",
+        route: "gemini.js",
+        code: "NO_CANDIDATE_RESPONSE",
+        response: data,
+      });
+    }
 
-    // Lưu vào Supabase (chỉ lưu tin nhắn mới)
+    const reply = data.candidates[0].content.parts[0].text ?? "[Gemini không có phản hồi]";
+
+    // Lưu vào Supabase
     const { error } = await supabase.from("messages").insert([
       {
         session_id: req.headers["x-session-id"] || "anonymous",
@@ -79,12 +91,12 @@ export default async function handler(req, res) {
 
     if (error) {
       console.error("Supabase error:", error.message);
-      return res.status(500).json({ error: "Failed to save chat to database", code: "SUPABASE_ERROR" });
+      return res.status(500).json({ error: "Failed to save chat to database", route: "gemini.js", code: "SUPABASE_ERROR" });
     }
 
     return res.status(200).json({ reply, history: [...contents, { role: "model", parts: [{ text: reply }] }] });
   } catch (error) {
     console.error("Gemini API error:", error.message || error);
-    return res.status(500).json({ error: "Gemini API failed. Try again later.", code: "API_REQUEST_FAILED" });
+    return res.status(500).json({ error: "Gemini API failed. Try again later.", route: "gemini.js", code: "API_REQUEST_FAILED", details: error.message });
   }
 }
