@@ -192,7 +192,6 @@
             .map(m => ({
               role: m.sender === "You" ? "user" : "model",
               parts: [{ text: m.text }],
-              image: m.image || null,
             }));
         } catch (e) {
           console.error("Error parsing localStorage:", e);
@@ -250,22 +249,24 @@
       let imageData = null;
       if (file && file.type.startsWith("image/")) {
         console.log("Uploading image:", { name: file.name, type: file.type, size: file.size });
-        const reader = new FileReader();
-        await new Promise((resolve, reject) => {
-          reader.onload = () => {
-            imageData = {
-              data: reader.result.split(",")[1],
-              mimeType: file.type,
+        try {
+          imageData = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              resolve({
+                data: reader.result.split(",")[1],
+                mimeType: file.type,
+              });
             };
-            console.log("Base64 length:", imageData.data.length);
-            resolve();
-          };
-          reader.onerror = () => {
-            showError("Lỗi khi đọc file ảnh.");
-            reject();
-          };
-          reader.readAsDataURL(file);
-        });
+            reader.onerror = () => reject(new Error("Lỗi khi đọc file ảnh."));
+            reader.readAsDataURL(file);
+          });
+          console.log("Base64 length:", imageData.data.length);
+        } catch (e) {
+          showError(e.message);
+          isSending = false;
+          return;
+        }
       }
 
       addMessage("You", prompt || "[Đã gửi file]", false, imageData);
@@ -273,7 +274,8 @@
       const thinking = addMessage("Bot", "<em>Đang suy nghĩ...</em>", true);
 
       try {
-        const body = { prompt, model, history };
+        const cleanHistory = history.map(({ role, parts }) => ({ role, parts }));
+        const body = { prompt, model, history: cleanHistory };
         if (imageData) {
           body.parts = [{ text: prompt || "Mô tả ảnh này" }, { inlineData: imageData }];
         }
