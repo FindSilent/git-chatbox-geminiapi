@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gemini Chatbot</title>
   <style>
     :root {
@@ -49,11 +49,6 @@
       white-space: pre-wrap;
       overflow-x: auto;
     }
-    .bot img {
-      max-width: 100%;
-      margin-top: 10px;
-      border-radius: 8px;
-    }
     textarea, button, select {
       margin-top: 10px;
       padding: 10px;
@@ -90,214 +85,22 @@
     <h2>💬 Gemini Chatbot</h2>
     <div id="messages"></div>
 
-    <textarea id="prompt" placeholder="Nhập câu hỏi của bạn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
+    <textarea id="prompt" placeholder="Nhập câu hỏi... (Enter: gửi, Shift+Enter: xuống dòng)"></textarea>
     <select id="model">
       <option value="gemini-2.0-flash">gemini-2.0-flash</option>
       <option value="gemini-2.0-pro">gemini-2.0-pro</option>
       <option value="gemini-1.5-pro">gemini-1.5-pro</option>
     </select>
-    <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp" multiple>
-    <input type="file" id="fileInput" accept=".txt,.pdf,.jpg,.jpeg,.png" multiple>
+    <input type="file" id="fileInput" multiple accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.doc,.docx,.xlsx,.zip" />
 
     <div id="controls">
       <button onclick="sendMessage()">Gửi</button>
       <button onclick="resetChat()">🔄 Reset</button>
-      <button onclick="toggleDarkMode()">🌓 Dark Mode</button>
+      <button onclick="toggleDarkMode()">🌃 Dark Mode</button>
       <button onclick="exportChat()">📄 Xuất File</button>
     </div>
   </div>
 
-  <script type="module">
-    const messagesDiv = document.getElementById("messages");
-    const promptInput = document.getElementById("prompt");
-    const localKey = "chat_history";
-    let history = [];
-
-    window.onload = () => {
-      const saved = localStorage.getItem(localKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        parsed.forEach(msg => {
-          addMessage(msg.sender, formatMarkdown(msg.text), true);
-        });
-        history = parsed
-          .filter(m => m.sender === "You" || m.sender === "Bot")
-          .map(m => ({
-            role: m.sender === "You" ? "user" : "model",
-            parts: [{ text: m.text }],
-          }));
-      }
-      if (localStorage.getItem("darkMode") === "true") {
-        document.body.classList.add("dark");
-      }
-    };
-
-    async function sendMessage() {
-      const prompt = promptInput.value.trim();
-      const model = document.getElementById("model").value;
-      const imageFiles = document.getElementById("imageInput").files;
-      const otherFiles = document.getElementById("fileInput").files;
-
-      if (!prompt && imageFiles.length === 0 && otherFiles.length === 0) return;
-
-      let msgText = prompt || "[Đã gửi tệp]";
-      const imagesHTML = [];
-      for (let file of imageFiles) {
-        const url = URL.createObjectURL(file);
-        imagesHTML.push(`<img src="${url}" alt="image">`);
-      }
-
-      addMessage("You", formatMarkdown(msgText) + imagesHTML.join(""), true);
-      promptInput.value = "";
-
-      const thinking = addMessage("Bot", "<em>Đang suy nghĩ...</em>", true);
-
-      const imageList = await Promise.all(
-        Array.from(imageFiles).map(f => {
-          return new Promise(resolve => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              resolve({
-                data: reader.result.split(",")[1],
-                mimeType: f.type,
-              });
-            };
-            reader.readAsDataURL(f);
-          });
-        })
-      );
-
-      const payload = {
-        prompt,
-        model,
-        history,
-        images: imageList,
-        files: [], // Optionally add file data here
-      };
-
-      try {
-        const res = await fetch("/api/gemini", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json();
-        const reply = data.reply || "Không có phản hồi.";
-        updateMessage(thinking, formatMarkdown(reply));
-        history.push({ role: "user", parts: [{ text: prompt }] });
-        history.push({ role: "model", parts: [{ text: reply }] });
-        saveToLocal();
-        document.getElementById("imageInput").value = "";
-        document.getElementById("fileInput").value = "";
-      } catch (err) {
-        updateMessage(thinking, "❌ Lỗi khi gọi API.");
-      }
-    }
-
-    function addMessage(sender, text, isHTML = false) {
-      const msgDiv = document.createElement("div");
-      msgDiv.className = "msg";
-
-      const avatar = document.createElement("span");
-      avatar.style.fontSize = "1.5em";
-      avatar.style.marginRight = "8px";
-      avatar.textContent = sender === "You" ? "🧑" : "🤖";
-
-      const senderSpan = document.createElement("div");
-      senderSpan.className = "user";
-      senderSpan.textContent = `${sender}:`;
-
-      const contentDiv = document.createElement("div");
-      contentDiv.className = "bot";
-      contentDiv.innerHTML = isHTML ? text : escapeHTML(text);
-
-      if (sender === "Bot") {
-        const copyBtn = document.createElement("button");
-        copyBtn.className = "copy-btn";
-        copyBtn.textContent = "📋 Copy";
-        copyBtn.onclick = () => {
-          navigator.clipboard.writeText(contentDiv.textContent);
-          copyBtn.textContent = "✅ Copied!";
-          setTimeout(() => (copyBtn.textContent = "📋 Copy"), 1500);
-        };
-        msgDiv.appendChild(copyBtn);
-      }
-
-      msgDiv.appendChild(avatar);
-      msgDiv.appendChild(senderSpan);
-      msgDiv.appendChild(contentDiv);
-      messagesDiv.appendChild(msgDiv);
-
-      window.scrollTo(0, document.body.scrollHeight);
-      return contentDiv;
-    }
-
-    function updateMessage(node, newText) {
-      node.innerHTML = newText;
-      window.scrollTo(0, document.body.scrollHeight);
-    }
-
-    function resetChat() {
-      messagesDiv.innerHTML = "";
-      history = [];
-      localStorage.removeItem(localKey);
-    }
-
-    function toggleDarkMode() {
-      document.body.classList.toggle("dark");
-      localStorage.setItem("darkMode", document.body.classList.contains("dark"));
-    }
-
-    function formatMarkdown(text) {
-      return text
-        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-        .replace(/\*(.*?)\*/g, "<em>$1</em>")
-        .replace(/`([^`]+)`/g, "<code>$1</code>")
-        .replace(/\n/g, "<br>");
-    }
-
-    function escapeHTML(str) {
-      return str.replace(/[&<>'"]/g, tag => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;',
-        "'": '&#39;', '"': '&quot;',
-      }[tag]));
-    }
-
-    function saveToLocal() {
-      const saved = history.map(h => ({
-        sender: h.role === "user" ? "You" : "Bot",
-        text: h.parts[0].text
-      }));
-      localStorage.setItem(localKey, JSON.stringify(saved));
-    }
-
-    function exportChat() {
-      const saved = localStorage.getItem(localKey);
-      if (!saved) return alert("Không có hội thoại để xuất.");
-      const messages = JSON.parse(saved);
-      const lines = messages.map(m => `${m.sender}: ${m.text}`).join("\n\n");
-      const blob = new Blob([lines], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "chat_history.txt";
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    // ENTER = gửi, SHIFT+ENTER = xuống dòng
-    promptInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
-
-    // export functions globally
-    window.sendMessage = sendMessage;
-    window.resetChat = resetChat;
-    window.toggleDarkMode = toggleDarkMode;
-    window.exportChat = exportChat;
-  </script>
+  <script type="module" src="./chatbot.js"></script>
 </body>
 </html>
