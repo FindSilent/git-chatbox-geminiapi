@@ -179,16 +179,18 @@
   <div id="chatbox">
     <div id="messages"></div>
     <div class="input-container">
-      <textarea id="prompt" placeholder="Enter any question... (Enter to send, Shift+Enter to go to new line)"></textarea>
-      <div id="controls">
-        <label class="file-upload">
+       <label class="file-upload">
           Upload
           <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
         </label>
-        <span id="file-name" class="file-name"></span>
-        <button onclick="resetChat()">🔄 Clear</button>
-        <button onclick="toggleDarkMode()">🌓</button>
+      <span id="file-name" class="file-name"></span>
+      <textarea id="prompt" placeholder="Enter any question... (Enter to send, Shift+Enter to go to new line)"></textarea>
+      <div id="controls">
         <button class="submitbtn" onclick="sendMessage()">↑</button>
+        <button onclick="toggleDarkMode()">🌓</button>
+        <button onclick="resetChat()">🔄 Clear</button>
+
+       
       </div>
     </div>
   </div>
