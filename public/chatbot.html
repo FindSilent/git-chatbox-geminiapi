@@ -157,9 +157,9 @@
 
     <textarea id="prompt" placeholder="Nhập câu hỏi của bạn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
     <select id="model">
+      <option value="gemini-1.5-pro">gemini-1.5-pro</option>
       <option value="gemini-2.0-flash">gemini-2.0-flash</option>
       <option value="gemini-2.0-pro">gemini-2.0-pro</option>
-      <option value="gemini-1.5-pro">gemini-1.5-pro</option>
     </select>
     <input type="file" id="uploadInput" accept="image/png,image/jpeg,image/webp,.txt" />
 
@@ -251,9 +251,11 @@
         let body = { prompt, model, history };
 
         if (file && file.type.startsWith("image/")) {
+          console.log("Uploading image:", { name: file.name, type: file.type, size: file.size });
           const reader = new FileReader();
           reader.onload = async () => {
             const base64 = reader.result.split(",")[1];
+            console.log("Base64 length:", base64.length);
             const mimeType = file.type;
 
             try {
@@ -263,6 +265,7 @@
                 body: JSON.stringify({ ...body, image: { data: base64, mimeType } }),
               });
               const data = await res.json();
+              console.log("Backend response:", data);
 
               if (!res.ok || data.error) {
                 throw new Error(data.error?.message || `Lỗi không xác định (${data.code || "UNKNOWN"})`);
@@ -270,7 +273,7 @@
 
               const reply = data.reply || "Không có phản hồi.";
               updateMessage(thinking, formatMarkdown(reply));
-              history = data.history || [...history, { role: "user", parts: [{ text: prompt }] }, { role: "model", parts: [{ text: reply }] }];
+              history = data.history || [...history, { role: "user", parts: [{ text: prompt || "[Image uploaded]" }] }, { role: "model", parts: [{ text: reply }] }];
               saveToLocal();
               uploadInput.value = "";
             } catch (err) {
@@ -292,6 +295,7 @@
             body: JSON.stringify(body),
           });
           const data = await res.json();
+          console.log("Backend response:", data);
 
           if (!res.ok || data.error) {
             throw new Error(data.error?.message || `Lỗi không xác định (${data.code || "UNKNOWN"})`);
