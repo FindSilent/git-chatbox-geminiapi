@@ -203,7 +203,7 @@
       }
     };
 
-    uploadInput.addEventListener("change", async () => {
+    uploadInput.addEventListener("change", () => {
       const file = uploadInput.files[0];
       if (file) {
         if (file.type.startsWith("image/")) {
@@ -219,12 +219,13 @@
           promptInput.value = "Mô tả ảnh này";
           window.scrollTo(0, document.body.scrollHeight);
         } else if (file.type === "text/plain") {
-          try {
-            const text = await file.text();
-            promptInput.value += text;
-          } catch (e) {
-            showError("Lỗi khi đọc file .txt.");
-          }
+          const reader = new FileReader();
+          reader.onload = () => {
+            promptInput.value += reader.result;
+            window.scrollTo(0, document.body.scrollHeight);
+          };
+          reader.onerror = () => showError("Lỗi khi đọc file .txt.");
+          reader.readAsText(file);
         } else {
           showError("Chỉ hỗ trợ ảnh (PNG, JPEG, WebP) hoặc file .txt.");
         }
@@ -252,12 +253,10 @@
         try {
           imageData = await new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = () => {
-              resolve({
-                data: reader.result.split(",")[1],
-                mimeType: file.type,
-              });
-            };
+            reader.onload = () => resolve({
+              data: reader.result.split(",")[1],
+              mimeType: file.type,
+            });
             reader.onerror = () => reject(new Error("Lỗi khi đọc file ảnh."));
             reader.readAsDataURL(file);
           });
@@ -269,7 +268,8 @@
         }
       }
 
-      addMessage("You", prompt || "[Đã gửi file]", false, imageData);
+      const userMessage = prompt || "[Đã gửi file]";
+      addMessage("You", userMessage, false, imageData);
       promptInput.value = "";
       const thinking = addMessage("Bot", "<em>Đang suy nghĩ...</em>", true);
 
@@ -297,10 +297,10 @@
         updateMessage(thinking, formatMarkdown(reply));
         history = data.history || [
           ...history,
-          { role: "user", parts: [{ text: prompt || "[Image uploaded]" }], image: imageData },
+          { role: "user", parts: [{ text: userMessage }] },
           { role: "model", parts: [{ text: reply }] },
         ];
-        saveToLocal();
+        saveToLocal(imageData);
         uploadInput.value = "";
       } catch (err) {
         showError(`Lỗi: ${err.message}`);
@@ -405,12 +405,12 @@
       }[tag]));
     }
 
-    function saveToLocal() {
+    function saveToLocal(imageData = null) {
       try {
         const saved = history.slice(-100).map(h => ({
           sender: h.role === "user" ? "You" : "Bot",
           text: h.parts[0].text,
-          image: h.image || null,
+          image: h.role === "user" && imageData ? imageData : null,
         }));
         localStorage.setItem(localKey, JSON.stringify(saved));
       } catch (e) {
