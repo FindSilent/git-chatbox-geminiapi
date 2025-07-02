@@ -1,6 +1,11 @@
-// api/gemini.js
+// pages/api/gemini.js (Next.js)
 
-import supabase from "../../lib/supabase"; // sửa đường dẫn nếu không dùng alias
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
 const DEFAULT_MODEL = "gemini-2.0-flash";
 
@@ -22,7 +27,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Missing Gemini API key" });
   }
 
-  // Build chat history
   const contents = Array.isArray(history) ? [...history] : [];
   contents.push({
     role: "user",
@@ -30,6 +34,7 @@ export default async function handler(req, res) {
   });
 
   try {
+    // Gọi Gemini
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
       {
@@ -42,35 +47,32 @@ export default async function handler(req, res) {
     const data = await response.json();
 
     if (!response.ok || !data?.candidates?.length) {
-      throw new Error(data?.error?.message || "No candidate response");
+      console.error("Gemini API error:", data);
+      return res
+        .status(500)
+        .json({ error: data?.error?.message || "No candidate reply" });
     }
 
     const reply =
       data.candidates[0]?.content?.parts?.[0]?.text ?? "[Empty Gemini reply]";
 
-    // Ghi lịch sử vào Supabase
+    // Lưu vào Supabase
     const session_id = req.headers["x-session-id"] || "anonymous";
-    const fullHistory = contents.concat({
-      role: "model",
-      parts: [{ text: reply }],
-    });
 
     const { error: dbError } = await supabase.from("chats").insert([
       {
         session_id,
-        history: fullHistory,
+        history: [...contents, { role: "model", parts: [{ text: reply }] }],
       },
     ]);
 
     if (dbError) {
-      console.error("Supabase insert error:", dbError.message);
+      console.error("Supabase error:", dbError.message);
     }
 
     return res.status(200).json({ reply });
   } catch (error) {
-    console.error("Gemini API error:", error.message || error);
-    return res
-      .status(500)
-      .json({ error: "Gemini API failed. Try again later." });
+    console.error("Gemini Handler Exception:", error.message);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
