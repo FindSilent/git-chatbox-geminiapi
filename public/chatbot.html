@@ -157,8 +157,8 @@
 
     <textarea id="prompt" placeholder="Nhập câu hỏi của bạn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
     <select id="model">
+      <option value="gemini-1.5-flash">gemini-1.5-flash</option>
       <option value="gemini-1.5-pro">gemini-1.5-pro</option>
-      <option value="gemini-2.0-flash">gemini-2.0-flash</option>
       <option value="gemini-2.0-pro">gemini-2.0-pro</option>
     </select>
     <input type="file" id="uploadInput" accept="image/png,image/jpeg,image/webp,.txt" />
@@ -209,10 +209,16 @@
       const file = uploadInput.files[0];
       if (file) {
         if (file.type.startsWith("image/")) {
+          if (file.size > 5 * 1024 * 1024) {
+            showError("Ảnh vượt quá giới hạn 5MB.");
+            uploadInput.value = "";
+            return;
+          }
           const img = document.createElement("img");
           img.src = URL.createObjectURL(file);
           img.className = "preview-img";
           messagesDiv.appendChild(img);
+          promptInput.value = "Mô tả ảnh này"; // Thêm prompt mặc định
           window.scrollTo(0, document.body.scrollHeight);
         } else if (file.type === "text/plain") {
           try {
@@ -394,11 +400,11 @@
         return "";
       }
       return str.replace(/[&<>'"]/g, tag => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        "'": "&#39;",
-        '"': "&quot;"
+        "&": "&",
+        "<": "<",
+        ">": ">",
+        "'": "'",
+        '"': """
       }[tag]));
     }
 
