@@ -1,23 +1,22 @@
-const DEFAULT_MODEL = "gemini-1.5-flash"; // Sử dụng model có quota cao hơn
-import supabase from "../lib/supabase"; // Chỉnh đúng path nếu cần
+const DEFAULT_MODEL = "gemini-1.5-flash";
+import supabase from "../lib/supabase";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed", route: "gemini.js", code: "METHOD_NOT_ALLOWED" });
   }
 
-  const { prompt, model, history, image } = req.body;
+  const { prompt, model, history, parts } = req.body;
 
-  // Kiểm tra input
-  if (!prompt?.trim() && !image) {
-    return res.status(400).json({ error: "Prompt or image is required", route: "gemini.js", code: "MISSING_INPUT" });
+  if (!prompt?.trim() && !parts) {
+    return res.status(400).json({ error: "Prompt or parts required", route: "gemini.js", code: "MISSING_INPUT" });
   }
 
-  // Giới hạn kích thước
   if (prompt?.length > 10000) {
     return res.status(400).json({ error: "Prompt exceeds 10,000 characters", route: "gemini.js", code: "PROMPT_TOO_LONG" });
   }
-  if (image?.data?.length > 5 * 1024 * 1024) {
+
+  if (parts && parts.some(p => p.inlineData && p.inlineData.data?.length > 5 * 1024 * 1024)) {
     return res.status(400).json({ error: "Image size exceeds 5MB limit", route: "gemini.js", code: "IMAGE_TOO_LARGE" });
   }
 
@@ -28,24 +27,17 @@ export default async function handler(req, res) {
   }
 
   const contents = Array.isArray(history) ? [...history] : [];
+  const userParts = [];
 
-  const parts = [];
-
-  if (image?.data && image?.mimeType) {
-    console.log("Received image:", { mimeType: image.mimeType, dataLength: image.data.length });
-    parts.push({
-      inlineData: {
-        mimeType: image.mimeType,
-        data: image.data,
-      },
-    });
+  if (parts) {
+    userParts.push(...parts);
+  } else if (prompt?.trim()) {
+    userParts.push({ text: prompt.trim() });
   }
 
-  if (prompt?.trim()) {
-    parts.push({ text: prompt.trim() });
-  }
+  contents.push({ role: "user", parts: userParts });
 
-  contents.push({ role: "user", parts });
+  console.log("Sending to Gemini API:", { model: modelName, contents });
 
   try {
     const response = await fetch(
@@ -63,7 +55,7 @@ export default async function handler(req, res) {
     if (!response.ok) {
       if (response.status === 429) {
         return res.status(429).json({
-          error: "Quota exceeded. Consider upgrading to pay-as-you-go or using gemini-1.5-flash.",
+          error: "Quota exceeded. Try gemini-1.5-flash or upgrade to pay-as-you-go.",
           route: "gemini.js",
           code: "QUOTA_EXCEEDED",
           details: data?.error?.details || null,
@@ -88,7 +80,6 @@ export default async function handler(req, res) {
 
     const reply = data.candidates[0].content.parts[0].text ?? "[Gemini không có phản hồi]";
 
-    // Lưu vào Supabase (sử dụng bảng chats)
     const { error } = await supabase.from("chats").insert([
       {
         session_id: req.headers["x-session-id"] || "anonymous",
@@ -97,14 +88,9 @@ export default async function handler(req, res) {
     ]);
 
     if (error) {
-      console.error("Supabase error details:", {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-      });
+      console.error("Supabase error:", { message: error.message, code: error.code, details: error.details });
       return res.status(500).json({
-        error: `Failed to save chat to database: ${error.message}`,
+        error: `Failed to save chat: ${error.message}`,
         route: "gemini.js",
         code: "SUPABASE_ERROR",
         details: error.details || null,
