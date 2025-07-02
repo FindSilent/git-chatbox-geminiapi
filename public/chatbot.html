@@ -35,6 +35,7 @@
     }
     .msg {
       margin-bottom: 20px;
+      position: relative;
     }
     .user {
       font-weight: bold;
@@ -58,29 +59,27 @@
     }
     button {
       cursor: pointer;
-      margin-top: 10px;
     }
     #controls {
       display: flex;
+      flex-wrap: wrap;
       gap: 10px;
       margin-top: 10px;
-      flex-wrap: wrap;
     }
-    code {
-      background: #eee;
-      padding: 2px 4px;
-      border-radius: 4px;
-      font-family: monospace;
+    #fileInput {
+      margin-top: 10px;
     }
-    pre {
-      background: #eee;
-      padding: 10px;
-      border-radius: 6px;
-      overflow-x: auto;
-    }
-    a {
-      color: var(--highlight);
-      text-decoration: underline;
+    .copy-btn {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      font-size: 0.8em;
+      background: var(--highlight);
+      color: white;
+      border: none;
+      border-radius: 3px;
+      padding: 3px 6px;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -89,13 +88,14 @@
     <h2>💬 Gemini Chatbot</h2>
     <div id="messages"></div>
 
-    <textarea id="prompt" rows="3" placeholder="Nhập câu hỏi của bạn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
-    <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.txt,.pdf" />
+    <textarea id="prompt" placeholder="Nhập câu hỏi của bạn..."></textarea>
     <select id="model">
       <option value="gemini-2.0-flash">gemini-2.0-flash</option>
       <option value="gemini-2.0-pro">gemini-2.0-pro</option>
       <option value="gemini-1.5-pro">gemini-1.5-pro</option>
     </select>
+    
+    <input type="file" id="fileInput" accept=".txt,.pdf,.jpg,.jpeg,.png" />
 
     <div id="controls">
       <button onclick="sendMessage()">Gửi</button>
@@ -105,7 +105,7 @@
     </div>
   </div>
 
-  <script>
+  <script type="module">
     const messagesDiv = document.getElementById("messages");
     const promptInput = document.getElementById("prompt");
     const localKey = "chat_history";
@@ -125,18 +125,10 @@
             parts: [{ text: m.text }],
           }));
       }
-
       if (localStorage.getItem("darkMode") === "true") {
         document.body.classList.add("dark");
       }
     };
-
-    promptInput.addEventListener("keydown", e => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
 
     async function sendMessage() {
       const prompt = promptInput.value.trim();
@@ -145,22 +137,21 @@
 
       addMessage("You", prompt);
       promptInput.value = "";
-      promptInput.focus();
 
-      const thinking = addMessage("Bot", "<em>🤔 Đang suy nghĩ...</em>", true);
+      const thinking = addMessage("Bot", "<em>Thinking...</em>", true);
 
       try {
         const res = await fetch("/api/gemini", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-session-id": "chat_" + Date.now()
+          },
           body: JSON.stringify({ prompt, model, history }),
         });
 
         const data = await res.json();
-
-        if (!res.ok) throw new Error(data.error || "Unknown error");
-
-        const reply = data.reply || "Không có phản hồi.";
+        const reply = data.reply || "No response";
         const formatted = formatMarkdown(reply);
         updateMessage(thinking, formatted);
 
@@ -169,8 +160,7 @@
 
         saveToLocal();
       } catch (err) {
-        console.error("Error:", err);
-        updateMessage(thinking, `❌ Lỗi: ${err.message}`);
+        updateMessage(thinking, "❌ Lỗi khi gọi API.");
       }
     }
 
@@ -191,6 +181,18 @@
       contentDiv.className = "bot";
       contentDiv.innerHTML = isHTML ? text : escapeHTML(text);
 
+      if (sender === "Bot") {
+        const copyBtn = document.createElement("button");
+        copyBtn.className = "copy-btn";
+        copyBtn.textContent = "📋 Copy";
+        copyBtn.onclick = () => {
+          navigator.clipboard.writeText(contentDiv.textContent);
+          copyBtn.textContent = "✅ Copied!";
+          setTimeout(() => (copyBtn.textContent = "📋 Copy"), 1500);
+        };
+        msgDiv.appendChild(copyBtn);
+      }
+
       msgDiv.appendChild(avatar);
       msgDiv.appendChild(senderSpan);
       msgDiv.appendChild(contentDiv);
@@ -206,11 +208,9 @@
     }
 
     function resetChat() {
-      if (confirm("Bạn có chắc muốn xóa toàn bộ hội thoại?")) {
-        messagesDiv.innerHTML = "";
-        history = [];
-        localStorage.removeItem(localKey);
-      }
+      messagesDiv.innerHTML = "";
+      history = [];
+      localStorage.removeItem(localKey);
     }
 
     function toggleDarkMode() {
@@ -220,14 +220,9 @@
 
     function formatMarkdown(text) {
       return text
-        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
         .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
         .replace(/\*(.*?)\*/g, "<em>$1</em>")
-        .replace(/```([\s\S]*?)```/g, "<pre><code>$1</code></pre>")
         .replace(/`([^`]+)`/g, "<code>$1</code>")
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
         .replace(/\n/g, "<br>");
     }
 
@@ -251,59 +246,50 @@
       if (!saved) return alert("Không có hội thoại để xuất.");
       const messages = JSON.parse(saved);
       const lines = messages.map(m => `${m.sender}: ${m.text}`).join("\n\n");
-
       const blob = new Blob([lines], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
-
       const a = document.createElement("a");
       a.href = url;
       a.download = "chat_history.txt";
       a.click();
       URL.revokeObjectURL(url);
     }
+
     document.getElementById("fileInput").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+      const file = e.target.files[0];
+      if (!file) return;
 
-  const reader = new FileReader();
+      const reader = new FileReader();
 
-  reader.onload = async () => {
-    let content = reader.result;
+      reader.onload = async () => {
+        let content = reader.result;
 
-    if (file.type.startsWith("image/")) {
-      content = `Người dùng đã gửi một hình ảnh: ${file.name} (không thể hiển thị ảnh trong chatbot text).`;
-    }
+        if (file.type.startsWith("image/")) {
+          content = `Người dùng đã gửi hình ảnh: ${file.name}`;
+          promptInput.value = content;
+          sendMessage();
+        } else if (file.name.endsWith(".txt")) {
+          promptInput.value = content;
+          sendMessage();
+        }
+      };
 
-    // Gửi nội dung file như prompt
-    promptInput.value = content;
-    sendMessage();
-  };
-
-  if (file.type.startsWith("text/") || file.name.endsWith(".txt")) {
-    reader.readAsText(file);
-  } else if (file.type === "application/pdf") {
-    const pdf = await file.arrayBuffer();
-    const text = await extractTextFromPDF(pdf);
-    promptInput.value = text.slice(0, 3000); // Cắt bớt nếu quá dài
-    sendMessage();
-  } else {
-    reader.readAsDataURL(file); // image fallback
-  }
-});
-
-// PDF parser (dùng pdf.js)
-async function extractTextFromPDF(buffer) {
-  const pdfjsLib = await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.min.mjs");
-  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-  let text = "";
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    text += content.items.map(item => item.str).join(" ") + "\n";
-  }
-  return text;
-}
-
+      if (file.type === "application/pdf") {
+        const buffer = await file.arrayBuffer();
+        const pdfjsLib = await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.mjs");
+        const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+        let text = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(item => item.str).join(" ") + "\n";
+        }
+        promptInput.value = text.slice(0, 3000);
+        sendMessage();
+      } else {
+        reader.readAsText(file);
+      }
+    });
   </script>
 </body>
 </html>
