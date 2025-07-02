@@ -25,7 +25,7 @@
       --button-hover: #6b7280;
     }
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Inter', sans-serif;
       background: var(--bg);
       color: var(--text);
       padding: 20px;
@@ -141,12 +141,8 @@
       background: var(--button-hover);
     }
     @media (max-width: 600px) {
-      body {
-        padding: 12px;
-      }
-      #chatbox {
-        padding: 16px;
-      }
+      body { padding: 12px; }
+      #chatbox { padding: 16px; }
     }
   </style>
 </head>
@@ -154,7 +150,6 @@
   <div id="chatbox">
     <h2>💬 Gemini Chatbot</h2>
     <div id="messages"></div>
-
     <textarea id="prompt" placeholder="Nhập câu hỏi của bạn... (Enter để gửi, Shift+Enter để xuống dòng)"></textarea>
     <select id="model">
       <option value="gemini-1.5-flash">gemini-1.5-flash</option>
@@ -162,7 +157,6 @@
       <option value="gemini-2.0-pro">gemini-2.0-pro</option>
     </select>
     <input type="file" id="uploadInput" accept="image/png,image/jpeg,image/webp,.txt" />
-
     <div id="controls">
       <button onclick="sendMessage()">Gửi</button>
       <button onclick="resetChat()">🔄 Reset</button>
@@ -171,7 +165,7 @@
     </div>
   </div>
 
-  <script type="module">
+  <script>
     const messagesDiv = document.getElementById("messages");
     const promptInput = document.getElementById("prompt");
     const uploadInput = document.getElementById("uploadInput");
@@ -179,7 +173,6 @@
     let history = [];
     let isSending = false;
 
-    // Load saved chat history
     window.onload = () => {
       const saved = localStorage.getItem(localKey);
       if (saved) {
@@ -187,7 +180,6 @@
           const parsed = JSON.parse(saved);
           parsed.forEach(msg => {
             if (msg.image) {
-              // Hiển thị ảnh từ base64
               const img = document.createElement("img");
               img.src = `data:${msg.image.mimeType};base64,${msg.image.data}`;
               img.className = "preview-img";
@@ -204,7 +196,7 @@
             }));
         } catch (e) {
           console.error("Error parsing localStorage:", e);
-          showError("Lỗi khi tải lịch sử chat từ localStorage.");
+          showError("Lỗi khi tải lịch sử chat.");
         }
       }
       if (localStorage.getItem("darkMode") === "true") {
@@ -212,7 +204,6 @@
       }
     };
 
-    // Handle file upload (image or .txt)
     uploadInput.addEventListener("change", async () => {
       const file = uploadInput.files[0];
       if (file) {
@@ -226,7 +217,7 @@
           img.src = URL.createObjectURL(file);
           img.className = "preview-img";
           messagesDiv.appendChild(img);
-          promptInput.value = "Mô tả ảnh này"; // Thêm prompt mặc định
+          promptInput.value = "Mô tả ảnh này";
           window.scrollTo(0, document.body.scrollHeight);
         } else if (file.type === "text/plain") {
           try {
@@ -236,13 +227,12 @@
             showError("Lỗi khi đọc file .txt.");
           }
         } else {
-          showError("Định dạng file không được hỗ trợ. Chỉ hỗ trợ ảnh (PNG, JPEG, WebP) hoặc file .txt.");
+          showError("Chỉ hỗ trợ ảnh (PNG, JPEG, WebP) hoặc file .txt.");
         }
-        uploadInput.value = ""; // Reset file input
+        uploadInput.value = "";
       }
     });
 
-    // Debounced sendMessage
     async function sendMessage() {
       if (isSending) return;
       isSending = true;
@@ -284,7 +274,6 @@
 
       try {
         const body = { prompt, model, history, image: imageData };
-
         const res = await fetch("/api/gemini", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -401,11 +390,11 @@
         return "";
       }
       return str.replace(/[&<>'"]/g, tag => ({
-        "&": "&",
-        "<": "<",
-        ">": ">",
-        "'": "'",
-        '"': """
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "'": "&apos;",
+        '"': "&quot;"
       }[tag]));
     }
 
@@ -445,7 +434,6 @@
       }
     }
 
-    // Debounce keydown event
     promptInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -453,7 +441,6 @@
       }
     });
 
-    // Export functions globally
     window.sendMessage = sendMessage;
     window.resetChat = resetChat;
     window.toggleDarkMode = toggleDarkMode;
