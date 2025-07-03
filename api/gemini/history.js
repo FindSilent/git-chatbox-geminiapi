@@ -15,6 +15,9 @@ export default async function handler(req, res) {
     }
 
     const sessionId = req.headers['x-session-id'];
+    if (!sessionId) {
+        return res.status(400).json({ error: 'Missing x-session-id header' });
+    }
 
     try {
         const { data, error } = await supabase
