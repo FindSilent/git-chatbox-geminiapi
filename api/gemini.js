@@ -23,11 +23,12 @@ export default async function handler(req, res) {
                 history = typeof historyRaw === 'string' && historyRaw !== '[object Object]'
                     ? JSON.parse(historyRaw)
                     : [];
-                // Filter out invalid inlineData from history
+                // Filter out invalid inlineData (e.g., blob URLs or empty data)
                 history = history.map(item => ({
                     ...item,
                     parts: item.parts.filter(part => 
-                        !part.inlineData || (part.inlineData.data && part.inlineData.mimeType)
+                        (part.text && part.text.trim()) || 
+                        (part.inlineData && part.inlineData.data && part.inlineData.mimeType && !part.inlineData.data.startsWith('blob:'))
                     )
                 }));
             }
