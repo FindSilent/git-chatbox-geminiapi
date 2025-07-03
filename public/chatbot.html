@@ -47,6 +47,7 @@
       display: flex;
       flex-direction: column;
       height: calc(100vh - 40px);
+      position: relative;
     }
     #messages {
       flex: 1;
@@ -63,9 +64,6 @@
       border-radius: 12px;
       line-height: 1.5;
       word-wrap: break-word;
-    }
-    .you {
-      justify-items: right;
     }
     .bot {
       background: var(--bot-bg);
@@ -113,6 +111,7 @@
       display: flex;
       gap: 8px;
       align-items: center;
+      flex-wrap: wrap;
     }
     button, .file-upload {
       padding: 5px 10px;
@@ -163,6 +162,41 @@
     .copy-btn:hover {
       background: rgba(0,0,0,0.2);
     }
+    #to-bottom-btn {
+      display: none;
+      position: absolute;
+      bottom: 100px;
+      right: 24px;
+      background: var(--highlight);
+      color: white;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 1rem;
+      line-height: 40px;
+    }
+    #history-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+    }
+    #history-modal > div {
+      max-width: 600px;
+      margin: 50px auto;
+      background: var(--card);
+      border-radius: 16px;
+      padding: 24px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    #history-content .msg {
+      margin-bottom: 16px;
+    }
     #messages::-webkit-scrollbar {
       width: 8px;
     }
@@ -178,44 +212,52 @@
 <body>
   <div id="chatbox">
     <div id="messages"></div>
+    <button id="to-bottom-btn" onclick="scrollToBottom()">Bottom</button>
     <div class="input-container">
-       <label class="file-upload">
-          Upload
-          <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
-        </label>
+      <label class="file-upload">
+        Upload
+        <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
+      </label>
       <span id="file-name" class="file-name"></span>
       <textarea id="prompt" placeholder="Enter any question... (Enter to send, Shift+Enter to go to new line)"></textarea>
       <div id="controls">
-        <button class="submitbtn" onclick="sendMessage()">↑</button>
-        <button onclick="toggleDarkMode()">🌓</button>
-        <button onclick="resetChat()">🔄 Clear</button>
-
-       
+        <button class="submitbtn" onclick="sendMessage()">Send</button>
+        <button onclick="toggleDarkMode()">Dark Mode</button>
+        <button onclick="newChat()">New Chat</button>
+        <button onclick="showHistory()">History</button>
+        <button onclick="resetChat()">Clear</button>
+      </div>
+    </div>
+    <div id="history-modal">
+      <div>
+        <h2 style="margin-bottom: 16px;">Chat History</h2>
+        <div id="history-content"></div>
+        <button onclick="closeHistory()" style="margin-top: 16px;">Close</button>
       </div>
     </div>
   </div>
 
   <script type="module">
+    console.log('Script loaded at', new Date().toISOString());
     const messagesDiv = document.getElementById("messages");
     const promptInput = document.getElementById("prompt");
     const imageInput = document.getElementById("imageInput");
     const fileNameSpan = document.getElementById("file-name");
-    const localKey = "chat_history";
+    const toBottomBtn = document.getElementById("to-bottom-btn");
+    const localKeyPrefix = "chat_history_";
     let history = [];
 
     window.onload = () => {
-      console.log("Loading chat history from localStorage...");
-      const saved = localStorage.getItem(localKey);
+      console.log('Window onload triggered');
+      const saved = localStorage.getItem(`${localKeyPrefix}current`);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed)) {
             parsed.forEach(msg => {
               if (msg.sender && typeof msg.text === "string") {
-                console.log(`Rendering saved message: ${msg.sender}`);
+                console.log(`Rendering message: ${msg.sender}`);
                 addMessage(msg.sender, formatMarkdown(msg.text), true, msg.image);
-              } else {
-                console.warn("Skipping invalid message:", msg);
               }
             });
             history = parsed
@@ -229,15 +271,17 @@
           }
         } catch (e) {
           console.error("Error parsing localStorage:", e);
-          localStorage.removeItem(localKey); // Clear invalid data
+          localStorage.removeItem(`${localKeyPrefix}current`);
         }
       }
       if (localStorage.getItem("darkMode") === "true") {
         document.body.classList.add("dark");
       }
+      updateToBottomButton();
     };
 
     async function sendMessage() {
+      console.log('sendMessage called');
       const prompt = promptInput.value.trim();
       const model = "gemini-2.0-flash";
       const imageFile = imageInput.files[0];
@@ -253,6 +297,7 @@
       if (imageFile) {
         const reader = new FileReader();
         reader.onload = async () => {
+          console.log('FileReader onload triggered');
           imageData = reader.result;
           const base64 = imageData.split(",")[1];
           if (!base64) {
@@ -261,20 +306,18 @@
             return;
           }
           const mimeType = imageFile.type;
-
-          console.log("Adding user message with image");
           addMessage("You", prompt || "", false, imageData);
           thinking = addMessage("Bot", "<em>Thinking...</em>", true);
 
           const body = {
             prompt: prompt || "",
             model,
-            history: Array.isArray(history) ? history : [],
+            history,
             image: { data: base64, mimeType }
           };
 
           try {
-            console.log("Sending request to Gemini API with image");
+            console.log('Sending request to /api/gemini');
             const res = await fetch("/api/gemini", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -283,14 +326,14 @@
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "API error");
             const reply = data.reply || "No response.";
-            console.log("Received reply:", reply);
+            console.log('Received reply:', reply);
             updateMessage(thinking, formatMarkdown(reply));
             history.push({ role: "user", parts: [{ text: prompt || "[Image]" }] });
             history.push({ role: "model", parts: [{ text: reply }] });
             saveToLocal(prompt || "[Image]", imageData);
-            promptInput.value = ""; // Clear textarea
-            imageInput.value = ""; // Clear file input
-            fileNameSpan.textContent = ""; // Clear file name
+            promptInput.value = "";
+            imageInput.value = "";
+            fileNameSpan.textContent = "";
           } catch (err) {
             console.error("API error:", err);
             updateMessage(thinking, `❌ Error: ${err.message || "Unable to call API."}`);
@@ -302,18 +345,17 @@
         };
         reader.readAsDataURL(imageFile);
       } else {
-        console.log("Adding user message without image");
         addMessage("You", prompt, false);
         thinking = addMessage("Bot", "<em>Thinking...</em>", true);
 
         const body = {
           prompt,
           model,
-          history: Array.isArray(history) ? history : [],
+          history,
         };
 
         try {
-          console.log("Sending request to Gemini API without image");
+          console.log('Sending request to /api/gemini (no image)');
           const res = await fetch("/api/gemini", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -322,12 +364,12 @@
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "API error");
           const reply = data.reply || "No response.";
-          console.log("Received reply:", reply);
+          console.log('Received reply:', reply);
           updateMessage(thinking, formatMarkdown(reply));
           history.push({ role: "user", parts: [{ text: prompt }] });
           history.push({ role: "model", parts: [{ text: reply }] });
           saveToLocal(prompt);
-          promptInput.value = ""; // Clear textarea
+          promptInput.value = "";
         } catch (err) {
           console.error("API error:", err);
           updateMessage(thinking, `❌ Error: ${err.message || "Unable to call API."}`);
@@ -336,10 +378,9 @@
     }
 
     function addMessage(sender, text, isHTML = false, imageData = null) {
-      console.log(`Adding message: sender=${sender}, text=${text}, hasImage=${!!imageData}`);
+      console.log(`addMessage: sender=${sender}, text=${text}, hasImage=${!!imageData}`);
       const msgDiv = document.createElement("div");
       msgDiv.className = `msg ${sender.toLowerCase()}`;
-
       const contentDiv = document.createElement("div");
       contentDiv.innerHTML = isHTML ? text : escapeHTML(text || "");
 
@@ -355,44 +396,136 @@
       if (sender === "Bot") {
         const copyBtn = document.createElement("button");
         copyBtn.className = "copy-btn";
-        copyBtn.textContent = "📋 Copy";
+        copyBtn.textContent = "Copy";
         copyBtn.onclick = () => {
           navigator.clipboard.writeText(contentDiv.textContent);
-          copyBtn.textContent = "✅ Copied!";
-          setTimeout(() => (copyBtn.textContent = "📋 Copy"), 1500);
+          copyBtn.textContent = "Copied!";
+          setTimeout(() => (copyBtn.textContent = "Copy"), 1500);
         };
         msgDiv.appendChild(copyBtn);
       }
 
       messagesDiv.appendChild(msgDiv);
-      window.scrollTo(0, document.body.scrollHeight);
+      const isNearBottom = messagesDiv.scrollHeight - messagesDiv.scrollTop <= messagesDiv.clientHeight + 100;
+      if (isNearBottom) {
+        messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: "smooth" });
+      }
+      updateToBottomButton();
       return contentDiv;
     }
 
     function updateMessage(node, newText) {
-      console.log("Updating message with:", newText);
+      console.log('updateMessage called');
       node.innerHTML = newText;
-      window.scrollTo(0, document.body.scrollHeight);
+      const isNearBottom = messagesDiv.scrollHeight - messagesDiv.scrollTop <= messagesDiv.clientHeight + 100;
+      if (isNearBottom) {
+        messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: "smooth" });
+      }
+      updateToBottomButton();
+    }
+
+    function scrollToBottom() {
+      console.log('scrollToBottom called');
+      messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: "smooth" });
+    }
+
+    function updateToBottomButton() {
+      const isAtBottom = messagesDiv.scrollHeight - messagesDiv.scrollTop <= messagesDiv.clientHeight + 10;
+      toBottomBtn.style.display = isAtBottom ? "none" : "block";
+    }
+
+    function newChat() {
+      console.log('newChat called');
+      const sessionId = `${localKeyPrefix}${Date.now()}`;
+      const saved = history.map(h => ({
+        sender: h.role === "user" ? "You" : "Bot",
+        text: h.parts[0]?.text || "",
+      }));
+      try {
+        localStorage.setItem(sessionId, JSON.stringify(saved));
+      } catch (e) {
+        console.error("Error saving session:", e);
+      }
+      messagesDiv.innerHTML = "";
+      history = [];
+      localStorage.removeItem(`${localKeyPrefix}current`);
+      promptInput.value = "";
+      imageInput.value = "";
+      fileNameSpan.textContent = "";
+      updateToBottomButton();
+    }
+
+    function showHistory() {
+      console.log('showHistory called');
+      const modal = document.getElementById("history-modal");
+      const historyContent = document.getElementById("history-content");
+      historyContent.innerHTML = "";
+
+      const sessions = Object.keys(localStorage)
+        .filter(key => key.startsWith(localKeyPrefix))
+        .sort((a, b) => b.localeCompare(a));
+
+      if (sessions.length === 0) {
+        historyContent.innerHTML = "<p>No history available.</p>";
+      } else {
+        sessions.forEach(sessionId => {
+          try {
+            const parsed = JSON.parse(localStorage.getItem(sessionId));
+            if (Array.isArray(parsed)) {
+              const sessionDiv = document.createElement("div");
+              sessionDiv.style.marginBottom = "24px";
+              sessionDiv.innerHTML = `<h3>Session ${new Date(parseInt(sessionId.replace(localKeyPrefix, ""))).toLocaleString()}</h3>`;
+              parsed.forEach(msg => {
+                if (msg.sender && typeof msg.text === "string") {
+                  const msgDiv = document.createElement("div");
+                  msgDiv.className = `msg ${msg.sender.toLowerCase()}`;
+                  const contentDiv = document.createElement("div");
+                  contentDiv.innerHTML = formatMarkdown(msg.text);
+                  if (msg.image && msg.sender === "You") {
+                    const img = document.createElement("img");
+                    img.src = msg.image;
+                    img.alt = "Uploaded image";
+                    img.style.maxWidth = "100%";
+                    contentDiv.appendChild(img);
+                  }
+                  msgDiv.appendChild(contentDiv);
+                  sessionDiv.appendChild(msgDiv);
+                }
+              });
+              historyContent.appendChild(sessionDiv);
+            }
+          } catch (e) {
+            console.error("Error parsing session:", e);
+          }
+        });
+      }
+      modal.style.display = "block";
+    }
+
+    function closeHistory() {
+      console.log('closeHistory called');
+      document.getElementById("history-modal").style.display = "none";
     }
 
     function resetChat() {
-      console.log("Resetting chat");
+      console.log('resetChat called');
       messagesDiv.innerHTML = "";
       history = [];
-      localStorage.removeItem(localKey);
-      promptInput.value = ""; // Clear textarea
-      imageInput.value = ""; // Clear file input
-      fileNameSpan.textContent = ""; // Clear file name
+      localStorage.removeItem(`${localKeyPrefix}current`);
+      promptInput.value = "";
+      imageInput.value = "";
+      fileNameSpan.textContent = "";
+      updateToBottomButton();
     }
 
     function toggleDarkMode() {
-      console.log("Toggling dark mode");
+      console.log('toggleDarkMode called');
       document.body.classList.toggle("dark");
       localStorage.setItem("darkMode", document.body.classList.contains("dark"));
     }
 
     function formatMarkdown(text) {
-      console.log("Formatting markdown:", text);
+      console.log('formatMarkdown called');
       if (!text || typeof text !== "string") return "";
       try {
         return text
@@ -401,32 +534,33 @@
           .replace(/`([^`]+)`/g, "<code>$1</code>")
           .replace(/\n/g, "<br>");
       } catch (e) {
-        console.error("Error formatting markdown:", e);
-        return escapeHTML(text); // Fallback to escaped text
+        console.error("Error in formatMarkdown:", e);
+        return escapeHTML(text);
       }
     }
 
     function escapeHTML(str) {
+      console.log('escapeHTML called');
       if (!str || typeof str !== "string") return "";
-      return str.replace(/[&<>'"`]/g, tag => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        "'": '&#39;',
-        '"': '&quot;',
-        '`': '&#96;',
+      return str.replace(/[&<>"'`]/g, tag => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+        "`": "&#96;"
       }[tag]));
     }
 
     function saveToLocal(text, imageData = null) {
-      console.log("Saving to localStorage:", text, imageData ? "with image" : "no image");
+      console.log('saveToLocal called');
       const saved = history.map(h => ({
         sender: h.role === "user" ? "You" : "Bot",
         text: h.parts[0]?.text || "",
         image: h.role === "user" ? imageData : null
       }));
       try {
-        localStorage.setItem(localKey, JSON.stringify(saved));
+        localStorage.setItem(`${localKeyPrefix}current`, JSON.stringify(saved));
       } catch (e) {
         console.error("Error saving to localStorage:", e);
       }
@@ -435,22 +569,25 @@
     promptInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        console.log("Enter key pressed, sending message");
+        console.log('Enter key pressed, calling sendMessage');
         sendMessage();
       }
     });
 
     imageInput.addEventListener("change", () => {
-      if (imageInput.files.length > 0) {
-        fileNameSpan.textContent = imageInput.files[0].name;
-      } else {
-        fileNameSpan.textContent = "";
-      }
+      console.log('imageInput changed');
+      fileNameSpan.textContent = imageInput.files.length > 0 ? imageInput.files[0].name : "";
     });
+
+    messagesDiv.addEventListener("scroll", updateToBottomButton);
 
     window.sendMessage = sendMessage;
     window.resetChat = resetChat;
     window.toggleDarkMode = toggleDarkMode;
+    window.newChat = newChat;
+    window.showHistory = showHistory;
+    window.closeHistory = closeHistory;
+    window.scrollToBottom = scrollToBottom;
   </script>
 </body>
 </html>
