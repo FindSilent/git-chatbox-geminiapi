@@ -207,12 +207,22 @@
       background: var(--border);
       border-radius: 4px;
     }
+  .arrow {
+    border: solid black;
+    border-width: 0 3px 3px 0;
+    display: inline-block;
+    padding: 3px;
+  }
+  .down {
+    transform: rotate(45deg);
+    -webkit-transform: rotate(45deg);
+  }
   </style>
 </head>
 <body>
   <div id="chatbox">
     <div id="messages"></div>
-    <button id="to-bottom-btn" onclick="scrollToBottom()">Bottom</button>
+    <button id="to-bottom-btn" class="arrow down" onclick="scrollToBottom()">down chevron icon</button>
     <div class="input-container">
       <label class="file-upload">
         Upload
