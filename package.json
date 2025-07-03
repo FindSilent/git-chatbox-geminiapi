@@ -7,6 +7,6 @@
   },
   "dependencies": {
     "formidable": "^3.5.1",
-    "@supabase/supabase-js": "^2.42.5"
+    "@supabase/supabase-js": "^2.45.4"
   }
 }
