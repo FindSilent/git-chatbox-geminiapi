@@ -257,14 +257,14 @@
           const base64 = imageData.split(",")[1];
           if (!base64) {
             console.error("Invalid image data");
-            updateMessage(thinking, "❌ Lỗi: Không đọc được file ảnh.");
+            updateMessage(thinking, "❌ Error: Invalid image data.");
             return;
           }
           const mimeType = imageFile.type;
 
           console.log("Adding user message with image");
           addMessage("You", prompt || "", false, imageData);
-          thinking = addMessage("Bot", "<em>Đang suy nghĩ...</em>", true);
+          thinking = addMessage("Bot", "<em>Thinking...</em>", true);
 
           const body = {
             prompt: prompt || "",
@@ -282,7 +282,7 @@
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "API error");
-            const reply = data.reply || "Không có phản hồi.";
+            const reply = data.reply || "No response.";
             console.log("Received reply:", reply);
             updateMessage(thinking, formatMarkdown(reply));
             history.push({ role: "user", parts: [{ text: prompt || "[Image]" }] });
@@ -293,18 +293,18 @@
             fileNameSpan.textContent = ""; // Clear file name
           } catch (err) {
             console.error("API error:", err);
-            updateMessage(thinking, `❌ Lỗi: ${err.message || "Không thể gọi API."}`);
+            updateMessage(thinking, `❌ Error: ${err.message || "Unable to call API."}`);
           }
         };
         reader.onerror = () => {
           console.error("FileReader error");
-          updateMessage(thinking, "❌ Lỗi: Không đọc được file ảnh.");
+          updateMessage(thinking, "❌ Error: Cannot read image file.");
         };
         reader.readAsDataURL(imageFile);
       } else {
         console.log("Adding user message without image");
         addMessage("You", prompt, false);
-        thinking = addMessage("Bot", "<em>Đang suy nghĩ...</em>", true);
+        thinking = addMessage("Bot", "<em>Thinking...</em>", true);
 
         const body = {
           prompt,
@@ -321,7 +321,7 @@
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "API error");
-          const reply = data.reply || "Không có phản hồi.";
+          const reply = data.reply || "No response.";
           console.log("Received reply:", reply);
           updateMessage(thinking, formatMarkdown(reply));
           history.push({ role: "user", parts: [{ text: prompt }] });
@@ -330,7 +330,7 @@
           promptInput.value = ""; // Clear textarea
         } catch (err) {
           console.error("API error:", err);
-          updateMessage(thinking, `❌ Lỗi: ${err.message || "Không thể gọi API."}`);
+          updateMessage(thinking, `❌ Error: ${err.message || "Unable to call API."}`);
         }
       }
     }
