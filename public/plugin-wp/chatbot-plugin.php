@@ -1,0 +1,620 @@
+<?php
+/*
+Plugin Name: Chatbot Plugin
+Description: A customizable chatbot for WordPress using shortcode.
+Version: 1.0
+Author: iSEOAI
+Author URI: https://iseoai.com
+License: GPLv2 or later
+*/
+
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+// Register shortcode
+function chatbot_shortcode() {
+    ob_start();
+    ?>
+    <div id="chatbox" class="chatbox-wrapper">
+        <div id="messages"></div>
+        <button id="to-bottom-btn" onclick="scrollToBottom()">ꜜ ꜜ</button>
+        <div class="input-container">
+            <label class="file-upload">
+                Upload
+                <input type="file" id="imageInput" accept="image/png, image/jpeg, image/webp">
+            </label>
+            <span id="file-name" class="file-name"></span>
+            <textarea id="prompt" placeholder="Enter any question... (Enter to send, Shift+Enter to go to new line)"></textarea>
+            <div id="controls">
+                <button class="submitbtn" onclick="sendMessage()">Send</button>
+                <button onclick="toggleDarkMode()">Dark Mode</button>
+                <button onclick="newChat()">New Chat</button>
+                <button onclick="showHistory()">History</button>
+                <button onclick="resetChat()">Clear</button>
+            </div>
+            <div id="history-modal">
+                <div>
+                    <div class="modal-header">
+                        <h2 style="margin-bottom: 16px;">Chat History</h2>
+                        <button onclick="closeHistory()" class="modal-close-btn">Close</button>
+                    </div>
+                    <div id="history-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        :root {
+            --bg: #f5f7fa;
+            --text: #1a202c;
+            --card: #ffffff;
+            --highlight: #3b82f6;
+            --bot-bg: #e5e7eb;
+            --user-bg: #dbeafe;
+            --border: #e2e8f0;
+        }
+        body.dark {
+            --bg: #1f2937;
+            --text: #e5e7eb;
+            --card: #374151;
+            --bot-bg: #4b5563;
+            --user-bg: #1e40af;
+            --border: #4b5563;
+        }
+        .chatbox-wrapper {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            max-width: 400px;
+            width: 100%;
+            z-index: 1000;
+            background: var(--card);
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            display: flex;
+            flex-direction: column;
+            height: 500px;
+        }
+        #messages {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .msg {
+            max-width: 100%;
+            position: relative;
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        .bot {
+            background: var(--bot-bg);
+            align-self: flex-start;
+            border-radius: 12px 12px 12px 0;
+        }
+        .user {
+            background: var(--user-bg);
+            color: white;
+            align-self: flex-end;
+            border-radius: 12px 12px 0 12px;
+        }
+        .msg img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin-top: 8px;
+            display: block;
+            max-height: 200px;
+            object-fit: contain;
+        }
+        .input-container {
+            padding: 16px;
+            border-top: 1px solid var(--border);
+            background: var(--card);
+            border-radius: 0 0 16px 16px;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            background: var(--card);
+            color: var(--text);
+            margin-bottom: 12px;
+            transition: border-color 0.2s ease;
+            resize: vertical;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: var(--highlight);
+        }
+        #controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        button, .file-upload {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            background: var(--highlight);
+            color: white;
+            transition: background 0.2s ease;
+            text-align: center;
+        }
+        button:hover, .file-upload:hover {
+            background: #2563eb;
+        }
+        .file-upload {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .file-upload input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .file-name {
+            font-size: 0.9rem;
+            color: var(--text);
+            margin-left: 8px;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .copy-btn {
+            position: absolute;
+            top: -25px;
+            right: 8px;
+            background: rgba(0,0,0,0.1);
+            color: var(--text);
+            font-size: 0.8rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .copy-btn:hover {
+            background: rgba(0,0,0,0.2);
+        }
+        #to-bottom-btn {
+            display: none;
+            position: absolute;
+            bottom: 175px;
+            right: 5px;
+            background: var(--highlight);
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            line-height: 50px;
+            font-size: 35px;
+            padding: 0;
+        }
+        #history-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        #history-modal > div {
+            max-width: 600px;
+            margin: 50px auto;
+            background: var(--card);
+            border-radius: 16px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        #history-content .msg {
+            margin-bottom: 16px;
+        }
+        #history-content {
+            padding: 10px;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: var(--card);
+            z-index: 10;
+            padding: 0 10px;
+        }
+        .modal-close-btn {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            background: var(--highlight);
+            color: white;
+            transition: background 0.2s ease;
+        }
+        .modal-close-btn:hover {
+            background: #2563eb;
+        }
+        #messages::-webkit-scrollbar {
+            width: 8px;
+        }
+        #messages::-webkit-scrollbar-track {
+            background: var(--card);
+        }
+        #messages::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+    </style>
+
+    <script type="module">
+        console.log('Script loaded at', new Date().toISOString());
+        const messagesDiv = document.getElementById("messages");
+        const promptInput = document.getElementById("prompt");
+        const imageInput = document.getElementById("imageInput");
+        const fileNameSpan = document.getElementById("file-name");
+        const toBottomBtn = document.getElementById("to-bottom-btn");
+        const localKeyPrefix = "chat_history_";
+        let history = [];
+
+        window.onload = () => {
+            console.log('Window onload triggered');
+            const saved = localStorage.getItem(`${localKeyPrefix}current`);
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) {
+                        parsed.forEach(msg => {
+                            if (msg.sender && typeof msg.text === "string") {
+                                console.log(`Rendering message: ${msg.sender}`);
+                                addMessage(msg.sender, formatMarkdown(msg.text), true, msg.image);
+                            }
+                        });
+                        history = parsed
+                            .filter(m => m.sender === "You" || m.sender === "Bot")
+                            .map(m => ({
+                                role: m.sender === "You" ? "user" : "model",
+                                parts: [{ text: m.text }],
+                            }));
+                    } else {
+                        console.warn("Invalid chat history format");
+                    }
+                } catch (e) {
+                    console.error("Error parsing localStorage:", e);
+                    localStorage.removeItem(`${localKeyPrefix}current`);
+                }
+            }
+            if (localStorage.getItem("darkMode") === "true") {
+                document.body.classList.add("dark");
+            }
+            updateToBottomButton();
+        };
+
+        async function sendMessage() {
+            console.log('sendMessage called');
+            const prompt = promptInput.value.trim();
+            const model = "gemini-2.0-flash";
+            const imageFile = imageInput.files[0];
+
+            if (!prompt && !imageFile) {
+                console.warn("No prompt or image provided");
+                return;
+            }
+
+            let imageData = null;
+            let thinking = null;
+
+            if (imageFile) {
+                const reader = new FileReader();
+                reader.onload = async () => {
+                    console.log('FileReader onload triggered');
+                    imageData = reader.result;
+                    const base64 = imageData.split(",")[1];
+                    if (!base64) {
+                        console.error("Invalid image data");
+                        updateMessage(thinking, "❌ Error: Invalid image data.");
+                        return;
+                    }
+                    const mimeType = imageFile.type;
+                    addMessage("You", prompt || "", false, imageData);
+                    thinking = addMessage("Bot", "<em>Thinking...</em>", true);
+
+                    const body = {
+                        prompt: prompt || "",
+                        model,
+                        history,
+                        image: { data: base64, mimeType }
+                    };
+
+                    try {
+                        console.log('Sending request to /api/gemini');
+                        const res = await fetch("/api/gemini", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(body),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error || "API error");
+                        const reply = data.reply || "No response.";
+                        console.log('Received reply:', reply);
+                        updateMessage(thinking, formatMarkdown(reply));
+                        history.push({ role: "user", parts: [{ text: prompt || "[Image]" }] });
+                        history.push({ role: "model", parts: [{ text: reply }] });
+                        saveToLocal(prompt || "[Image]", imageData);
+                        promptInput.value = "";
+                        imageInput.value = "";
+                        fileNameSpan.textContent = "";
+                    } catch (err) {
+                        console.error("API error:", err);
+                        updateMessage(thinking, `❌ Error: ${err.message || "Unable to call API."}`);
+                    }
+                };
+                reader.onerror = () => {
+                    console.error("FileReader error");
+                    updateMessage(thinking, "❌ Error: Cannot read image file.");
+                };
+                reader.readAsDataURL(imageFile);
+            } else {
+                addMessage("You", prompt, false);
+                thinking = addMessage("Bot", "<em>Thinking...</em>", true);
+
+                const body = {
+                    prompt,
+                    model,
+                    history,
+                };
+
+                try {
+                    console.log('Sending request to /api/gemini (no image)');
+                    const res = await fetch("/api/gemini", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(body),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || "API error");
+                    const reply = data.reply || "No response.";
+                    console.log('Received reply:', reply);
+                    updateMessage(thinking, formatMarkdown(reply));
+                    history.push({ role: "user", parts: [{ text: prompt }] });
+                    history.push({ role: "model", parts: [{ text: reply }] });
+                    saveToLocal(prompt);
+                    promptInput.value = "";
+                } catch (err) {
+                    console.error("API error:", err);
+                    updateMessage(thinking, `❌ Error: ${err.message || "Unable to call API."}`);
+                }
+            }
+        }
+
+        function addMessage(sender, text, isHTML = false, imageData = null) {
+            console.log(`addMessage: sender=${sender}, text=${text}, hasImage=${!!imageData}`);
+            const msgDiv = document.createElement("div");
+            msgDiv.className = `msg ${sender.toLowerCase()}`;
+            const contentDiv = document.createElement("div");
+            contentDiv.innerHTML = isHTML ? text : escapeHTML(text || "");
+
+            if (sender === "You" && imageData && imageData.startsWith("data:image/")) {
+                const img = document.createElement("img");
+                img.src = imageData;
+                img.alt = "Uploaded image";
+                contentDiv.appendChild(img);
+            }
+
+            msgDiv.appendChild(contentDiv);
+
+            if (sender === "Bot") {
+                const copyBtn = document.createElement("button");
+                copyBtn.className = "copy-btn";
+                copyBtn.textContent = "Copy";
+                copyBtn.onclick = () => {
+                    navigator.clipboard.writeText(contentDiv.textContent);
+                    copyBtn.textContent = "Copied!";
+                    setTimeout(() => (copyBtn.textContent = "Copy"), 1500);
+                };
+                msgDiv.appendChild(copyBtn);
+            }
+
+            messagesDiv.appendChild(msgDiv);
+            setTimeout(() => {
+                messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: "smooth" });
+            }, 0);
+            updateToBottomButton();
+            return contentDiv;
+        }
+
+        function updateMessage(node, newText) {
+            console.log('updateMessage called');
+            node.innerHTML = newText;
+            setTimeout(() => {
+                messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: "smooth" });
+            }, 0);
+            updateToBottomButton();
+        }
+
+        function scrollToBottom() {
+            console.log('scrollToBottom called');
+            messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: "smooth" });
+        }
+
+        function updateToBottomButton() {
+            const isAtBottom = messagesDiv.scrollHeight - messagesDiv.scrollTop <= messagesDiv.clientHeight + 10;
+            toBottomBtn.style.display = isAtBottom ? "none" : "block";
+        }
+
+        function newChat() {
+            console.log('newChat called');
+            const sessionId = `${localKeyPrefix}${Date.now()}`;
+            const saved = history.map(h => ({
+                sender: h.role === "user" ? "You" : "Bot",
+                text: h.parts[0]?.text || "",
+            }));
+            try {
+                localStorage.setItem(sessionId, JSON.stringify(saved));
+            } catch (e) {
+                console.error("Error saving session:", e);
+            }
+            messagesDiv.innerHTML = "";
+            history = [];
+            localStorage.removeItem(`${localKeyPrefix}current`);
+            promptInput.value = "";
+            imageInput.value = "";
+            fileNameSpan.textContent = "";
+            updateToBottomButton();
+        }
+
+        function showHistory() {
+            console.log('showHistory called');
+            const modal = document.getElementById("history-modal");
+            const historyContent = document.getElementById("history-content");
+            historyContent.innerHTML = "";
+
+            const sessions = Object.keys(localStorage)
+                .filter(key => key.startsWith(localKeyPrefix))
+                .sort((a, b) => b.localeCompare(a));
+
+            if (sessions.length === 0) {
+                historyContent.innerHTML = "<p>No history available.</p>";
+            } else {
+                sessions.forEach(sessionId => {
+                    try {
+                        const parsed = JSON.parse(localStorage.getItem(sessionId));
+                        if (Array.isArray(parsed)) {
+                            const sessionDiv = document.createElement("div");
+                            sessionDiv.style.marginBottom = "24px";
+                            sessionDiv.innerHTML = `<h3>Session ${new Date(parseInt(sessionId.replace(localKeyPrefix, ""))).toLocaleString()}</h3>`;
+                            parsed.forEach(msg => {
+                                if (msg.sender && typeof msg.text === "string") {
+                                    const msgDiv = document.createElement("div");
+                                    msgDiv.className = `msg ${msg.sender.toLowerCase()}`;
+                                    const contentDiv = document.createElement("div");
+                                    contentDiv.innerHTML = formatMarkdown(msg.text);
+                                    if (msg.image && msg.sender === "You") {
+                                        const img = document.createElement("img");
+                                        img.src = msg.image;
+                                        img.alt = "Uploaded image";
+                                        img.style.maxWidth = "100%";
+                                        contentDiv.appendChild(img);
+                                    }
+                                    msgDiv.appendChild(contentDiv);
+                                    sessionDiv.appendChild(msgDiv);
+                                }
+                            });
+                            historyContent.appendChild(sessionDiv);
+                        }
+                    } catch (e) {
+                        console.error("Error parsing session:", e);
+                    }
+                });
+            }
+            modal.style.display = "block";
+        }
+
+        function closeHistory() {
+            console.log('closeHistory called');
+            document.getElementById("history-modal").style.display = "none";
+        }
+
+        function resetChat() {
+            console.log('resetChat called');
+            messagesDiv.innerHTML = "";
+            history = [];
+            localStorage.removeItem(`${localKeyPrefix}current`);
+            promptInput.value = "";
+            imageInput.value = "";
+            fileNameSpan.textContent = "";
+            updateToBottomButton();
+        }
+
+        function toggleDarkMode() {
+            console.log('toggleDarkMode called');
+            document.body.classList.toggle("dark");
+            localStorage.setItem("darkMode", document.body.classList.contains("dark"));
+        }
+
+        function formatMarkdown(text) {
+            console.log('formatMarkdown called');
+            if (!text || typeof text !== "string") return "";
+            try {
+                return text
+                    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+                    .replace(/\*(.*?)\*/g, "<em>$1</em>")
+                    .replace(/`([^`]+)`/g, "<code>$1</code>")
+                    .replace(/\n/g, "<br>");
+            } catch (e) {
+                console.error("Error in formatMarkdown:", e);
+                return escapeHTML(text);
+            }
+        }
+
+        function escapeHTML(str) {
+            console.log('escapeHTML called');
+            if (!str || typeof str !== "string") return "";
+            return str.replace(/[&<>"'`]/g, tag => ({
+                "&": "&",
+                "<": "<",
+                ">": ">",
+                '"': """,
+                "'": "'",
+                "`": "`"
+            }[tag]));
+        }
+
+        function saveToLocal(text, imageData = null) {
+            console.log('saveToLocal called');
+            const saved = history.map(h => ({
+                sender: h.role === "user" ? "You" : "Bot",
+                text: h.parts[0]?.text || "",
+                image: h.role === "user" ? imageData : null
+            }));
+            try {
+                localStorage.setItem(`${localKeyPrefix}current`, JSON.stringify(saved));
+            } catch (e) {
+                console.error("Error saving to localStorage:", e);
+            }
+        }
+
+        promptInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                console.log('Enter key pressed, calling sendMessage');
+                sendMessage();
+            }
+        });
+
+        imageInput.addEventListener("change", () => {
+            console.log('imageInput changed');
+            fileNameSpan.textContent = imageInput.files.length > 0 ? imageInput.files[0].name : "";
+        });
+
+        messagesDiv.addEventListener("scroll", updateToBottomButton);
+
+        window.sendMessage = sendMessage;
+        window.resetChat = resetChat;
+        window.toggleDarkMode = toggleDarkMode;
+        window.newChat = newChat;
+        window.showHistory = showHistory;
+        window.closeHistory = closeHistory;
+        window.scrollToBottom = scrollToBottom;
+    </script>
+    <?php
+    return ob_get_clean();
+}
+add_shortcode('chatbot', 'chatbot_shortcode');
