@@ -6,6 +6,7 @@
     "start": "vercel start"
   },
   "dependencies": {
+    "formidable": "^3.5.1",
     "@supabase/supabase-js": "^2.42.5"
   }
 }
