@@ -1,68 +1,68 @@
-const DEFAULT_MODEL = "gemini-2.0-flash"; // Fixed to gemini-2.0-flash
-import supabase from "../lib/supabase";
+import formidable from 'formidable';
+import supabase from '../lib/supabase';
+
+const DEFAULT_MODEL = "gemini-2.0-flash";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-session-id');
 
-  const { prompt, history, image } = req.body;
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  if (!prompt?.trim() && !image) {
-    return res.status(400).json({ error: "Prompt or image is required" });
-  }
+  const form = formidable({ multiples: false });
+  form.parse(req, async (err, fields, files) => {
+    if (err) return res.status(500).json({ error: 'Failed to parse form data' });
 
-  const modelName = DEFAULT_MODEL;
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "Missing Gemini API key" });
+    const prompt = fields.prompt?.[0]?.trim() || '';
+    const history = fields.history ? JSON.parse(fields.history[0] || '[]') : [];
+    const image = files.image?.[0];
 
-  const contents = Array.isArray(history) ? [...history] : [];
+    if (!prompt && !image) return res.status(400).json({ error: 'Prompt or image is required' });
 
-  const parts = [];
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: 'Missing Gemini API key' });
 
-  if (image?.data && image?.mimeType) {
-    parts.push({
-      inlineData: {
-        mimeType: image.mimeType,
-        data: image.data,
-      },
-    });
-  }
+    const contents = Array.isArray(history) ? [...history] : [];
+    const parts = [];
 
-  if (prompt?.trim()) {
-    parts.push({ text: prompt.trim() });
-  }
-
-  contents.push({ role: "user", parts });
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok || !data?.candidates?.length) {
-      throw new Error(data?.error?.message || "No candidate response");
+    if (image) {
+      const fs = require('fs');
+      const imageData = fs.readFileSync(image.filepath, { encoding: 'base64' });
+      parts.push({ inlineData: { mimeType: image.mimetype, data: imageData } });
     }
+    if (prompt) parts.push({ text: prompt });
+    contents.push({ role: 'user', parts });
 
-    const reply = data.candidates[0]?.content?.parts?.[0]?.text ?? "[Gemini không có phản hồi]";
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${DEFAULT_MODEL}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents }),
+        }
+      );
 
-    await supabase.from("chats").insert([
-      {
-        session_id: req.headers["x-session-id"] || "anonymous",
-        history: [...contents, { role: "model", parts: [{ text: reply }] }],
-      },
-    ]);
+      const data = await response.json();
+      if (!response.ok || !data?.candidates?.length) {
+        throw new Error(data?.error?.message || 'No candidate response');
+      }
 
-    return res.status(200).json({ reply });
-  } catch (error) {
-    console.error("Gemini API error:", error.message || error);
-    return res.status(500).json({ error: "Gemini API failed. Try again later." });
-  }
+      const reply = data.candidates[0]?.content?.parts?.[0]?.text ?? '[Gemini không có phản hồi]';
+
+      await supabase.from('chats').insert([
+        {
+          session_id: req.headers['x-session-id'] || 'anonymous',
+          history: [...contents, { role: 'model', parts: [{ text: reply }] }],
+        },
+      ]);
+
+      return res.status(200).json({ reply });
+    } catch (error) {
+      console.error('Gemini API error:', error.message || error);
+      return res.status(500).json({ error: 'Gemini API failed. Try again later.' });
+    }
+  });
 }
