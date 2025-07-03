@@ -16,7 +16,20 @@ export default async function handler(req, res) {
     if (err) return res.status(500).json({ error: 'Failed to parse form data' });
 
     const prompt = fields.prompt?.[0]?.trim() || '';
-    const history = fields.history ? JSON.parse(fields.history[0] || '[]') : [];
+    let history = [];
+    try {
+      // Kiểm tra và parse history an toàn
+      if (fields.history?.[0]) {
+        const historyRaw = fields.history[0];
+        history = typeof historyRaw === 'string' && historyRaw !== '[object Object]'
+          ? JSON.parse(historyRaw)
+          : [];
+      }
+    } catch (parseError) {
+      console.error('History parse error:', parseError.message);
+      history = []; // Fallback to empty array if parsing fails
+    }
+
     const image = files.image?.[0];
 
     if (!prompt && !image) return res.status(400).json({ error: 'Prompt or image is required' });
