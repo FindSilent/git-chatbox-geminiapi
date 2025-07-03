@@ -165,8 +165,8 @@
     #to-bottom-btn {
       display: none;
       position: absolute;
-      bottom: 125px;
-      right: 24px;
+      bottom: 175px;
+      right: 5px;
       background: var(--highlight);
       color: white;
       border-radius: 50%;
@@ -197,6 +197,29 @@
     }
     #history-content .msg {
       margin-bottom: 16px;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      background: var(--card);
+      z-index: 10;
+      padding: 16px 0;
+    }
+    .modal-close-btn {
+      padding: 5px 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      background: var(--highlight);
+      color: white;
+      transition: background 0.2s ease;
+    }
+    .modal-close-btn:hover {
+      background: #2563eb;
     }
     #messages::-webkit-scrollbar {
       width: 8px;
@@ -231,9 +254,11 @@
     </div>
     <div id="history-modal">
       <div>
-        <h2 style="margin-bottom: 16px;">Chat History</h2>
+        <div class="modal-header">
+          <h2 style="margin-bottom: 16px;">Chat History</h2>
+          <button onclick="closeHistory()" class="modal-close-btn">Close</button>
+        </div>
         <div id="history-content"></div>
-        <button onclick="closeHistory()" style="margin-top: 16px;">Close</button>
       </div>
     </div>
   </div>
