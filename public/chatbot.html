@@ -378,51 +378,49 @@
     }
 
     function addMessage(sender, text, isHTML = false, imageData = null) {
-      console.log(`addMessage: sender=${sender}, text=${text}, hasImage=${!!imageData}`);
-      const msgDiv = document.createElement("div");
-      msgDiv.className = `msg ${sender.toLowerCase()}`;
-      const contentDiv = document.createElement("div");
-      contentDiv.innerHTML = isHTML ? text : escapeHTML(text || "");
+  console.log(`addMessage: sender=${sender}, text=${text}, hasImage=${!!imageData}`);
+  const msgDiv = document.createElement("div");
+  msgDiv.className = `msg ${sender.toLowerCase()}`;
+  const contentDiv = document.createElement("div");
+  contentDiv.innerHTML = isHTML ? text : escapeHTML(text || "");
 
-      if (sender === "You" && imageData && imageData.startsWith("data:image/")) {
-        const img = document.createElement("img");
-        img.src = imageData;
-        img.alt = "Uploaded image";
-        contentDiv.appendChild(img);
-      }
+  if (sender === "You" && imageData && imageData.startsWith("data:image/")) {
+    const img = document.createElement("img");
+    img.src = imageData;
+    img.alt = "Uploaded image";
+    contentDiv.appendChild(img);
+  }
 
-      msgDiv.appendChild(contentDiv);
+  msgDiv.appendChild(contentDiv);
 
-      if (sender === "Bot") {
-        const copyBtn = document.createElement("button");
-        copyBtn.className = "copy-btn";
-        copyBtn.textContent = "Copy";
-        copyBtn.onclick = () => {
-          navigator.clipboard.writeText(contentDiv.textContent);
-          copyBtn.textContent = "Copied!";
-          setTimeout(() => (copyBtn.textContent = "Copy"), 1500);
-        };
-        msgDiv.appendChild(copyBtn);
-      }
+  if (sender === "Bot") {
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "copy-btn";
+    copyBtn.textContent = "Copy";
+    copyBtn.onclick = () => {
+      navigator.clipboard.writeText(contentDiv.textContent);
+      copyBtn.textContent = "Copied!";
+      setTimeout(() => (copyBtn.textContent = "Copy"), 1500);
+    };
+    msgDiv.appendChild(copyBtn);
+  }
 
-      messagesDiv.appendChild(msgDiv);
-      const isNearBottom = messagesDiv.scrollHeight - messagesDiv.scrollTop <= messagesDiv.clientHeight + 100;
-      if (isNearBottom) {
-        messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: "smooth" });
-      }
-      updateToBottomButton();
-      return contentDiv;
-    }
+  messagesDiv.appendChild(msgDiv);
+  setTimeout(() => {
+    messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: "smooth" });
+  }, 0);
+  updateToBottomButton();
+  return contentDiv;
+}
 
-    function updateMessage(node, newText) {
-      console.log('updateMessage called');
-      node.innerHTML = newText;
-      const isNearBottom = messagesDiv.scrollHeight - messagesDiv.scrollTop <= messagesDiv.clientHeight + 100;
-      if (isNearBottom) {
-        messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: "smooth" });
-      }
-      updateToBottomButton();
-    }
+function updateMessage(node, newText) {
+  console.log('updateMessage called');
+  node.innerHTML = newText;
+  setTimeout(() => {
+    messagesDiv.scrollTo({ top: messagesDiv.scrollHeight, behavior: "smooth" });
+  }, 0);
+  updateToBottomButton();
+}
 
     function scrollToBottom() {
       console.log('scrollToBottom called');
