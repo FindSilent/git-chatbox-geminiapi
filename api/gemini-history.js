@@ -26,11 +26,7 @@ export default async function handler(req, res) {
             throw new Error(error.message);
         }
 
-        if (!data || data.length === 0) {
-            return res.status(200).json({ history: [] });
-        }
-
-        return res.status(200).json({ history: data });
+        return res.status(200).json({ history: data || [] });
     } catch (error) {
         console.error('Supabase error:', error.message);
         return res.status(500).json({ error: 'Failed to fetch history: ' + error.message });
